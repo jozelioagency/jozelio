@@ -189,6 +189,7 @@ export const tenants = sqliteTable(
   (table) => [
     index("idx_tenants_subdomain").on(table.subdomain),
     index("idx_tenants_user_id").on(table.userId),
+    index("idx_tenants_custom_domain").on(table.customDomain),
   ]
 );
 

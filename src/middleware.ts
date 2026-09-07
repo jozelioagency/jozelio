@@ -123,10 +123,8 @@ export async function middleware(request: NextRequest) {
         if (customRateLimit === 0) {
           result = { success: true, limit: 0, reset: 0, remaining: 9999 };
         } else {
-          const { env } = getCloudflareContext();
-          const cfEnv = env as any;
-          let url = cfEnv?.UPSTASH_REDIS_REST_URL || process.env.UPSTASH_REDIS_REST_URL;
-          let token = cfEnv?.UPSTASH_REDIS_REST_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+          const url = getEnv("UPSTASH_REDIS_REST_URL");
+          const token = getEnv("UPSTASH_REDIS_REST_TOKEN");
           if (url && token) {
             const { Redis } = await import("@upstash/redis");
             const { Ratelimit } = await import("@upstash/ratelimit");

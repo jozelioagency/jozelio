@@ -8,15 +8,29 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
  * This utility checks the Cloudflare context first, then falls back to
  * `process.env` for local development compatibility.
  */
+function cleanEnv(val: unknown): string | undefined {
+  if (typeof val !== "string") return undefined;
+  let trimmed = val.trim();
+  if (!trimmed) return undefined;
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    trimmed = trimmed.slice(1, -1).trim();
+  }
+  return trimmed || undefined;
+}
+
 export function getEnv(key: string): string | undefined {
   try {
     const ctx = getCloudflareContext();
     const cfValue = (ctx?.env as unknown as Record<string, string | undefined>)?.[key];
-    if (cfValue) return cfValue;
+    const cleanedCf = cleanEnv(cfValue);
+    if (cleanedCf) return cleanedCf;
   } catch {
     // Not running inside a Cloudflare Edge request context (e.g. build time)
   }
-  return process.env[key];
+  return cleanEnv(process.env[key]);
 }
 
 /**

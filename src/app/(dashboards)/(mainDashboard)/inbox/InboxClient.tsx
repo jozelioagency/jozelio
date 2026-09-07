@@ -601,7 +601,7 @@ export default function InboxClient({ initialInvitations, initialNotifications, 
                             <UserPlus className="w-3 h-3" /> Workspace Invite
                           </span>
                           <h2 className="font-display font-black text-lg sm:text-xl md:text-2xl text-brand-blue uppercase tracking-tight leading-snug">
-                            You're Invited to Manage {inv.businessName}
+                            You&apos;re Invited to Manage {inv.businessName}
                           </h2>
                         </div>
                         <span className="font-mono text-[10px] sm:text-xs font-bold text-slate-500 shrink-0">

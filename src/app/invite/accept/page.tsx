@@ -120,7 +120,7 @@ export default function AcceptInvitePage() {
                 Invitation accepted!
               </h1>
               <p style={{ fontSize: 14, color: "#8b949e", marginBottom: 28, lineHeight: 1.6 }}>
-                You've successfully joined the project workspace. Head to your dashboard to get started.
+                You&apos;ve successfully joined the project workspace. Head to your dashboard to get started.
               </p>
               <button
                 onClick={() => router.push(`/project/${state.tenantId}/bocado/menu`)}

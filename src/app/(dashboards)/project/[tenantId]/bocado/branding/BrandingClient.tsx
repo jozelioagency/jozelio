@@ -279,6 +279,8 @@ export default function BrandingClient({ tenant, lang = "English", cooldownDays,
   const t = brandingTranslations[lang === "Arabic" ? "Arabic" : "English"];
   const isRtl = lang === "Arabic";
 
+  const [currentTime] = useState(() => Date.now());
+
   // Subdomain cooldown calculation
   let isSubdomainLocked = false;
   let remainingCooldownDays = 0;
@@ -287,10 +289,9 @@ export default function BrandingClient({ tenant, lang = "English", cooldownDays,
   if (cooldownDays > 0 && tenant.subdomainLastChangedAt) {
     const lastChanged = new Date(tenant.subdomainLastChangedAt).getTime();
     const cooldownMs = cooldownDays * 24 * 60 * 60 * 1000;
-    const now = Date.now();
-    if (now - lastChanged < cooldownMs) {
+    if (currentTime - lastChanged < cooldownMs) {
       isSubdomainLocked = true;
-      const remainingMs = cooldownMs - (now - lastChanged);
+      const remainingMs = cooldownMs - (currentTime - lastChanged);
       remainingCooldownDays = Math.ceil(remainingMs / (1000 * 60 * 60 * 24));
       nextSubdomainChangeDate = new Date(lastChanged + cooldownMs).toLocaleDateString(
         lang === "Arabic" ? "ar-EG" : "en-US",

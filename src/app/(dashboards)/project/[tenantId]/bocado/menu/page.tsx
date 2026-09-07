@@ -66,7 +66,7 @@ export default async function MenuPage({
     .all();
 
   // 4. Fetch custom menu item limits from settings
-  let customLimits = { free: 5, pro: 30, enterprise: 100 };
+  const customLimits = { free: 5, pro: 30, enterprise: 100 };
   try {
     await db.run(sql`CREATE TABLE IF NOT EXISTS system_settings (key TEXT PRIMARY KEY, value TEXT, updated_at INTEGER)`);
     const settings = await db.select().from(schema.systemSettings).all();

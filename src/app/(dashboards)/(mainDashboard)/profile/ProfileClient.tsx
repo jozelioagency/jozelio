@@ -153,6 +153,7 @@ export default function ProfileClient({ user, lang = "English" }: ProfileClientP
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [cropping, setCropping] = useState(false);
   const [initialScale, setInitialScale] = useState(1);
+  const [naturalSize, setNaturalSize] = useState({ width: 256, height: 256 });
 
   const imgRef = useRef<HTMLImageElement>(null);
 
@@ -192,6 +193,7 @@ export default function ProfileClient({ user, lang = "English" }: ProfileClientP
 
   const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
+    setNaturalSize({ width: img.naturalWidth, height: img.naturalHeight });
     const scale = Math.max(256 / img.naturalWidth, 256 / img.naturalHeight);
     setInitialScale(scale);
     setOffset({ x: 0, y: 0 });
@@ -885,8 +887,8 @@ export default function ProfileClient({ user, lang = "English" }: ProfileClientP
                           draggable={false}
                           onLoad={handleImageLoad}
                           style={{
-                            width: `${imgRef.current ? imgRef.current.naturalWidth * initialScale : 256}px`,
-                            height: `${imgRef.current ? imgRef.current.naturalHeight * initialScale : 256}px`,
+                            width: `${naturalSize.width * initialScale}px`,
+                            height: `${naturalSize.height * initialScale}px`,
                             transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
                             transition: isDragging ? "none" : "transform 0.1s ease-out",
                           }}

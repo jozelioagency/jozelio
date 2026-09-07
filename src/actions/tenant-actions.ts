@@ -317,8 +317,8 @@ export async function updateTenantProfile(data: {
     let themeSecondaryColor = data.themeSecondaryColor || "#113669";
     let themeNeutralColor = data.themeNeutralColor || "#eaeaea";
     let location = data.location || null;
-    let googleMapsLink = data.googleMapsLink ? data.googleMapsLink.trim() : null;
-    let hasBranches = data.hasBranches || false;
+    const googleMapsLink = data.googleMapsLink ? data.googleMapsLink.trim() : null;
+    const hasBranches = data.hasBranches || false;
     let branchesJson = data.branchesJson || "[]";
     
     try {
@@ -554,7 +554,7 @@ export async function updateTenantLanguages(
     if (!tenant) return { error: "Unauthorized role" };
 
     // Enforce tier limits
-    let finalLanguages = languages;
+    const finalLanguages = languages;
     if (tenant.tier === "free") {
       if (languages.length > 1) {
         return { error: "Free tier is limited to 1 secondary language. Please upgrade to Pro to add more." };

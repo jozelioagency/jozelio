@@ -2,23 +2,17 @@
 
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { drizzle } from "drizzle-orm/d1";
-import { eq, count, and, ne, sql } from "drizzle-orm";
+import { eq, count } from "drizzle-orm";
 import * as schema from "@/db/schema";
-import { createAuth } from "@/lib/auth";
 import { getSession } from "@/lib/auth-session";
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
-import { Resend } from "resend";
-import { invitationEmailHtml, systemNoticeEmail } from "@/lib/email-templates";
-import { verifyTurnstileToken } from "@/lib/turnstile";
 import { handleActionError, validateLength, MAX_LENGTHS } from "./_shared";
-import { getEnv } from "@/lib/get-env";
-
-
-
-const RESERVED_SUBDOMAINS = ["www", "api", "admin", "jozelio", "portal", "media", "auth", "static", "assets"];
 import { checkUserProjectPermission } from "./tenant-actions";
 
+export type ActionResponse = {
+  success?: boolean;
+  error?: string;
+};
 
 /**
  * Server action to create a Bocado menu item.
@@ -33,7 +27,7 @@ export async function createMenuItem(data: {
   priceEgp: number;
   category: string;
   imageUrl?: string;
-}) {
+}): Promise<ActionResponse> {
   try {
     const session = await getSession();
     if (!session) {
@@ -109,8 +103,7 @@ export async function createMenuItem(data: {
     revalidatePath(`/project/${tenant.id}/bocado/menu`);
     return { success: true };
   } catch (error: any) {
-    console.error("createMenuItem error:", error);
-    return { error: error?.message || "Internal server error" };
+    return handleActionError(error, "createMenuItem");
   }
 }
 
@@ -128,7 +121,7 @@ export async function updateMenuItem(
     category: string;
     imageUrl?: string;
   }
-) {
+): Promise<ActionResponse> {
   try {
     const session = await getSession();
     if (!session) return { error: "Unauthorized" };
@@ -145,6 +138,16 @@ export async function updateMenuItem(
 
     const tenant = await checkUserProjectPermission(db, item.tenantId, session.user.id, ["owner", "admin", "manager"]);
     if (!tenant) return { error: "Unauthorized role" };
+
+    // Input length validation
+    const lengthErrors = [
+      validateLength(data.nameEn, "Item name (English)", MAX_LENGTHS.menuItemName),
+      validateLength(data.nameAr, "Item name (Arabic)", MAX_LENGTHS.menuItemName),
+      validateLength(data.descriptionEn, "Description (English)", MAX_LENGTHS.description),
+      validateLength(data.descriptionAr, "Description (Arabic)", MAX_LENGTHS.description),
+      validateLength(data.category, "Category", MAX_LENGTHS.category),
+    ].find(Boolean);
+    if (lengthErrors) return lengthErrors;
 
     const priceInCents = Math.round(data.priceEgp * 100);
 
@@ -166,15 +169,14 @@ export async function updateMenuItem(
     revalidatePath(`/project/${tenant.id}/bocado/menu`);
     return { success: true };
   } catch (error: any) {
-    console.error("updateMenuItem error:", error);
-    return { error: error?.message || "Internal server error" };
+    return handleActionError(error, "updateMenuItem");
   }
 }
 
 /**
  * Server action to toggle menu item availability.
  */
-export async function toggleMenuItemAvailability(itemId: string, isAvailable: boolean) {
+export async function toggleMenuItemAvailability(itemId: string, isAvailable: boolean): Promise<ActionResponse> {
   try {
     const session = await getSession();
     if (!session) return { error: "Unauthorized" };
@@ -202,14 +204,14 @@ export async function toggleMenuItemAvailability(itemId: string, isAvailable: bo
     revalidatePath(`/project/${tenant.id}/bocado/menu`);
     return { success: true };
   } catch (error: any) {
-    return { error: error?.message || "Internal server error" };
+    return handleActionError(error, "toggleMenuItemAvailability");
   }
 }
 
 /**
  * Server action to delete a Bocado menu item.
  */
-export async function deleteMenuItem(itemId: string) {
+export async function deleteMenuItem(itemId: string): Promise<ActionResponse> {
   try {
     const session = await getSession();
     if (!session) return { error: "Unauthorized" };
@@ -235,8 +237,6 @@ export async function deleteMenuItem(itemId: string) {
     revalidatePath(`/project/${tenant.id}/bocado/menu`);
     return { success: true };
   } catch (error: any) {
-    console.error("deleteMenuItem error:", error);
-    return { error: error?.message || "Internal server error" };
+    return handleActionError(error, "deleteMenuItem");
   }
 }
-

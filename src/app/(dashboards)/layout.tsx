@@ -1,5 +1,6 @@
 import { getSession } from "@/lib/auth-session";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { cookies } from "next/headers";
 import { drizzle } from "drizzle-orm/d1";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
@@ -41,6 +42,7 @@ export default async function DashboardLayout({
 
   // Check if active user is suspended or warned
   let userWarning: { isWarned: boolean; warningReason: string | null } | null = null;
+  let banDetails: { reason: string | null; expiresAt: Date | null } | null = null;
   try {
     const caller = await db
       .select({ 
@@ -60,50 +62,53 @@ export default async function DashboardLayout({
         warningReason: caller.warningReason
       };
 
-      const isBanActive = caller.isBanned && (
-        !caller.banExpiresAt || new Date(caller.banExpiresAt) > new Date()
-      );
-
-      if (isBanActive) {
-        return (
-          <div className="min-h-screen bg-brand-bg text-brand-blue font-sans flex items-center justify-center p-6 text-center">
-            <div className="bg-brand-white border-4 border-brand-blue p-8 max-w-md w-full shadow-[8px_8px_0px_#113669]">
-              <div className="w-16 h-16 rounded-full bg-rose-500/10 border-2 border-rose-500 flex items-center justify-center font-bold text-2xl text-rose-500 mx-auto mb-4">
-                🚫
-              </div>
-              <h1 className="font-display font-black text-xl text-brand-blue uppercase tracking-wider mb-2">Account Suspended</h1>
-              <p className="text-xs font-semibold text-brand-blue/70 leading-relaxed mb-4">
-                Your account is currently suspended for policy violations.
-              </p>
-              
-              <div className="bg-rose-50 border-2 border-rose-500 p-4 mb-6 text-left">
-                <div className="font-mono text-[9px] font-black uppercase text-rose-600 tracking-wider mb-1">
-                  Reason for Suspension:
-                </div>
-                <div className="text-xs text-rose-950 font-bold">
-                  {caller.banReason || "No reason provided."}
-                </div>
-                
-                {caller.banExpiresAt && (
-                  <div className="mt-3 pt-2 border-t border-rose-500/20 text-[10px] text-rose-800 font-mono font-bold uppercase">
-                    Expires: {new Date(caller.banExpiresAt).toLocaleString()}
-                  </div>
-                )}
-              </div>
-
-              <a
-                href="/"
-                className="inline-flex items-center justify-center px-6 h-10 border-2 border-brand-blue bg-rose-600 text-brand-white font-mono text-xs uppercase font-black tracking-widest hover:bg-rose-700 transition-all shadow-[4px_4px_0px_#113669] active:translate-x-[1px] active:translate-y-[1px]"
-              >
-                Return to Homepage
-              </a>
-            </div>
-          </div>
-        );
+      if (caller.isBanned && (!caller.banExpiresAt || new Date(caller.banExpiresAt) > new Date())) {
+        banDetails = {
+          reason: caller.banReason,
+          expiresAt: caller.banExpiresAt ? new Date(caller.banExpiresAt) : null,
+        };
       }
     }
   } catch (err) {
     console.error("Failed to check user suspension status in layout:", err);
+  }
+
+  if (banDetails) {
+    return (
+      <div className="min-h-screen bg-brand-bg text-brand-blue font-sans flex items-center justify-center p-6 text-center">
+        <div className="bg-brand-white border-4 border-brand-blue p-8 max-w-md w-full shadow-[8px_8px_0px_#113669]">
+          <div className="w-16 h-16 rounded-full bg-rose-500/10 border-2 border-rose-500 flex items-center justify-center font-bold text-2xl text-rose-500 mx-auto mb-4">
+            🚫
+          </div>
+          <h1 className="font-display font-black text-xl text-brand-blue uppercase tracking-wider mb-2">Account Suspended</h1>
+          <p className="text-xs font-semibold text-brand-blue/70 leading-relaxed mb-4">
+            Your account is currently suspended for policy violations.
+          </p>
+          
+          <div className="bg-rose-50 border-2 border-rose-500 p-4 mb-6 text-left">
+            <div className="font-mono text-[9px] font-black uppercase text-rose-600 tracking-wider mb-1">
+              Reason for Suspension:
+            </div>
+            <div className="text-xs text-rose-950 font-bold">
+              {banDetails.reason || "No reason provided."}
+            </div>
+            
+            {banDetails.expiresAt && (
+              <div className="mt-3 pt-2 border-t border-rose-500/20 text-[10px] text-rose-800 font-mono font-bold uppercase">
+                Expires: {banDetails.expiresAt.toLocaleString()}
+              </div>
+            )}
+          </div>
+
+          <Link
+            href="/"
+            className="inline-flex items-center justify-center px-6 h-10 border-2 border-brand-blue bg-rose-600 text-brand-white font-mono text-xs uppercase font-black tracking-widest hover:bg-rose-700 transition-all shadow-[4px_4px_0px_#113669] active:translate-x-[1px] active:translate-y-[1px]"
+          >
+            Return to Homepage
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   // 3. Redirect to onboarding profile completion page if they don't have a username yet
