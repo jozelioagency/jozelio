@@ -10,6 +10,7 @@ import {
   otpEmailHtml,
   type OtpType,
 } from "@/lib/email-templates";
+import { getEnv } from "@/lib/get-env";
 
 // ─── Constants ───────────────────────────────────────────────
 /**
@@ -77,13 +78,16 @@ function sendEmailAsync(payload: Parameters<Resend["emails"]["send"]>[0]): void 
 export function createAuth(d1: D1Database) {
   const db = drizzle(d1, { schema });
 
-  const authSecret = process.env.BETTER_AUTH_SECRET;
-  if (!authSecret && IS_PROD) {
-    throw new Error("FATAL: BETTER_AUTH_SECRET environment variable is missing in production.");
+  const authSecret = getEnv("BETTER_AUTH_SECRET");
+  if (!authSecret) {
+    throw new Error(
+      "FATAL: BETTER_AUTH_SECRET environment variable is missing. " +
+      "Set it via 'wrangler secret put BETTER_AUTH_SECRET' for production, or add it to .env for local dev."
+    );
   }
 
   return betterAuth({
-    secret: authSecret || "jozelio_dev_secret_only",
+    secret: authSecret,
     database: drizzleAdapter(db, {
       provider: "sqlite",
     }),
@@ -141,8 +145,8 @@ export function createAuth(d1: D1Database) {
     // ─── Social Login Providers ──────────────────────────
     socialProviders: {
       google: {
-        clientId: process.env.GOOGLE_CLIENT_ID || "placeholder-google-client-id",
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET || "placeholder-google-client-secret",
+        clientId: getEnv("GOOGLE_CLIENT_ID") || "",
+        clientSecret: getEnv("GOOGLE_CLIENT_SECRET") || "",
       },
     },
 

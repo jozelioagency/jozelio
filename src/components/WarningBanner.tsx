@@ -31,7 +31,9 @@ export default function WarningBanner({ warningReason, username, projectId }: Wa
 
   const whatsappMessage = `Hello, I believe the warning on my account is a mistake. Could you please review it?\nUsername: ${username}\nProject ID: ${projectId}`;
   const whatsappNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "201000000000";
-  const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(whatsappMessage)}`;
+  // wa.me requires the number to start with + country code
+  const formattedNumber = whatsappNumber.startsWith("+") ? whatsappNumber : `+${whatsappNumber}`;
+  const whatsappUrl = `https://wa.me/${formattedNumber}?text=${encodeURIComponent(whatsappMessage)}`;
 
   return (
     <div className="bg-amber-50 border-4 border-brand-blue p-4 mb-6 flex gap-3 items-start text-start shadow-[4px_4px_0px_#113669] relative group animate-in fade-in slide-in-from-top-2 duration-300">

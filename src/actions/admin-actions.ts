@@ -11,15 +11,10 @@ import { headers } from "next/headers";
 import { Resend } from "resend";
 import { invitationEmailHtml, systemNoticeEmail } from "@/lib/email-templates";
 import { verifyTurnstileToken } from "@/lib/turnstile";
+import { handleActionError, validateLength, MAX_LENGTHS } from "./_shared";
+import { getEnv } from "@/lib/get-env";
 
-function handleActionError(error: any, fallback: string) {
-  console.error(`[Action Error] ${fallback}:`, error);
-  const msg = error?.message || "";
-  if (msg.includes("Failed query") || msg.includes("SQLITE_ERROR") || msg.includes("D1_")) {
-    return { error: "A database error occurred while processing your request. Please try again or contact support if the issue persists." };
-  }
-  return { error: msg || fallback };
-}
+
 
 const RESERVED_SUBDOMAINS = ["www", "api", "admin", "jozelio", "portal", "media", "auth", "static", "assets"];
 import { checkUserProjectPermission } from "./tenant-actions";
@@ -759,16 +754,21 @@ export async function sendMessageByAdmin(
     const session = await getSession();
     if (!session) return { error: "Unauthorized" };
 
-    const userRole = (session.user as any).role;
-    const { env } = getCloudflareContext();
-    const ownerEmail = (env as any).OWNER_EMAIL;
-    const isOwner = userRole === "owner" || (Boolean(ownerEmail) && session.user.email === ownerEmail);
+    const userRole = (session.user as { role?: string }).role;
+    const isOwner = userRole === "owner";
 
     // Only owners can send messages
     if (!isOwner) {
       return { error: "Unauthorized: Only Owners can send platform messages." };
     }
 
+    // Input length validation
+    const subjectErr = validateLength(subject, "Subject", MAX_LENGTHS.notificationTitle);
+    if (subjectErr) return subjectErr;
+    const bodyErr = validateLength(messageBody, "Message", MAX_LENGTHS.notificationMessage);
+    if (bodyErr) return bodyErr;
+
+    const { env } = getCloudflareContext();
     const db = drizzle(env.DB, { schema });
     
     // Get target user info
@@ -784,9 +784,10 @@ export async function sendMessageByAdmin(
     }
 
     if (sendAsEmail) {
-      if (process.env.RESEND_API_KEY) {
-        const fromEmail = process.env.RESEND_NEWS_EMAIL || "Jozelio News <news@mail.jozelio.com>";
-        const resend = new Resend(process.env.RESEND_API_KEY);
+      const resendApiKey = getEnv("RESEND_API_KEY");
+      if (resendApiKey) {
+        const fromEmail = getEnv("RESEND_NEWS_EMAIL") || "Jozelio News <news@mail.jozelio.com>";
+        const resend = new Resend(resendApiKey);
         await resend.emails.send({
           from: fromEmail,
           to: targetUser.email,
@@ -824,16 +825,21 @@ export async function sendGlobalMessageByAdmin(
     const session = await getSession();
     if (!session) return { error: "Unauthorized" };
 
-    const userRole = (session.user as any).role;
-    const { env } = getCloudflareContext();
-    const ownerEmail = (env as any).OWNER_EMAIL;
-    const isOwner = userRole === "owner" || (Boolean(ownerEmail) && session.user.email === ownerEmail);
+    const userRole = (session.user as { role?: string }).role;
+    const isOwner = userRole === "owner";
 
     // Only owners can send global messages
     if (!isOwner) {
       return { error: "Unauthorized: Only Owners can send global messages." };
     }
 
+    // Input length validation
+    const subjectErr = validateLength(subject, "Subject", MAX_LENGTHS.notificationTitle);
+    if (subjectErr) return subjectErr;
+    const bodyErr = validateLength(messageBody, "Message", MAX_LENGTHS.notificationMessage);
+    if (bodyErr) return bodyErr;
+
+    const { env } = getCloudflareContext();
     const db = drizzle(env.DB, { schema });
     
     // Fetch all users
@@ -857,9 +863,10 @@ export async function sendGlobalMessageByAdmin(
     }
 
     if (sendAsEmail) {
-      if (process.env.RESEND_API_KEY) {
-        const fromEmail = process.env.RESEND_NEWS_EMAIL || "Jozelio News <news@mail.jozelio.com>";
-        const resend = new Resend(process.env.RESEND_API_KEY);
+      const resendApiKey = getEnv("RESEND_API_KEY");
+      if (resendApiKey) {
+        const fromEmail = getEnv("RESEND_NEWS_EMAIL") || "Jozelio News <news@mail.jozelio.com>";
+        const resend = new Resend(resendApiKey);
         
         // Use batch sending for Resend. Resend supports up to 100 emails per batch.
         const chunkSize = 100;

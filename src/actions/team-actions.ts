@@ -11,15 +11,10 @@ import { headers } from "next/headers";
 import { Resend } from "resend";
 import { invitationEmailHtml, systemNoticeEmail } from "@/lib/email-templates";
 import { verifyTurnstileToken } from "@/lib/turnstile";
+import { handleActionError, validateLength, MAX_LENGTHS } from "./_shared";
+import { getEnv } from "@/lib/get-env";
 
-function handleActionError(error: any, fallback: string) {
-  console.error(`[Action Error] ${fallback}:`, error);
-  const msg = error?.message || "";
-  if (msg.includes("Failed query") || msg.includes("SQLITE_ERROR") || msg.includes("D1_")) {
-    return { error: "A database error occurred while processing your request. Please try again or contact support if the issue persists." };
-  }
-  return { error: msg || fallback };
-}
+
 
 const RESERVED_SUBDOMAINS = ["www", "api", "admin", "jozelio", "portal", "media", "auth", "static", "assets"];
 import { checkUserProjectPermission } from "./tenant-actions";

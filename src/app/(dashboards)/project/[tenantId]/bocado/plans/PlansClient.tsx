@@ -98,11 +98,12 @@ export default function PlansClient({ tenant, userRole, lang = "English", custom
   const handlePlanWhatsAppRedirect = (tier: "free" | "pro" | "enterprise") => {
     if (tier === currentTier) return;
     const rawNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "201234567890";
+    // Remove non-digits then re-add + prefix for wa.me compatibility
     const cleanNumber = rawNumber.replace(/[^\d]/g, "");
     const messageText = encodeURIComponent(
       `Hi, I want to activate/upgrade my business "${tenant.businessName}" (Workspace ID: ${tenant.id}) to the ${tier.toUpperCase()} plan.`
     );
-    const link = `https://wa.me/${cleanNumber}?text=${messageText}`;
+    const link = `https://wa.me/+${cleanNumber}?text=${messageText}`;
     window.open(link, "_blank");
   };
 

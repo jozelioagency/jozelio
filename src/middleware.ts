@@ -4,6 +4,7 @@ import { drizzle } from "drizzle-orm/d1";
 import { eq } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { getRatelimit } from "@/lib/ratelimit";
+import { getEnv } from "@/lib/get-env";
 
 /**
  * Root domain used for subdomain extraction.
@@ -195,37 +196,66 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // ─── Custom Domain Lookup ────────────────────────────────
+  // ─── Custom Domain Lookup (with Redis cache) ────────────
+  // Cache the custom domain → subdomain mapping for 5 minutes to avoid
+  // hitting D1 on every request. Falls back to direct D1 query on cache miss.
   const host = hostname.split(":")[0];
   if (!subdomain && host !== ROOT_DOMAIN && host !== "localhost") {
     try {
       const { env } = getCloudflareContext();
       if (env?.DB) {
-        const db = drizzle(env.DB, { schema });
-        const tenant = await db
-          .select({
-            subdomain: schema.tenants.subdomain,
-            tier: schema.tenants.tier
-          })
-          .from(schema.tenants)
-          .where(eq(schema.tenants.customDomain, host))
-          .get();
+        const cacheKey = `customdomain:${host}`;
+        let tenantSubdomain: string | null = null;
+        let tenantTier: string | null = null;
 
-        if (tenant && tenant.tier !== "free") {
+        // Try Redis cache first
+        const redisUrl = getEnv("UPSTASH_REDIS_REST_URL");
+        const redisToken = getEnv("UPSTASH_REDIS_REST_TOKEN");
+        let redisClient: import("@upstash/redis").Redis | null = null;
+
+        if (redisUrl && redisToken) {
+          try {
+            const { Redis } = await import("@upstash/redis");
+            redisClient = new Redis({ url: redisUrl, token: redisToken });
+            const cached = await redisClient.get<{ subdomain: string; tier: string }>(cacheKey);
+            if (cached) {
+              tenantSubdomain = cached.subdomain;
+              tenantTier = cached.tier;
+            }
+          } catch {
+            // Redis unavailable, fall through to D1
+          }
+        }
+
+        // Cache miss — query D1
+        if (!tenantSubdomain) {
+          const db = drizzle(env.DB, { schema });
+          const tenant = await db
+            .select({ subdomain: schema.tenants.subdomain, tier: schema.tenants.tier })
+            .from(schema.tenants)
+            .where(eq(schema.tenants.customDomain, host))
+            .get();
+
+          if (tenant) {
+            tenantSubdomain = tenant.subdomain;
+            tenantTier = tenant.tier;
+            // Write to Redis cache with 5-minute TTL
+            if (redisClient) {
+              try {
+                await redisClient.set(cacheKey, { subdomain: tenant.subdomain, tier: tenant.tier }, { ex: 300 });
+              } catch { /* Non-fatal: Redis write failure */ }
+            }
+          }
+        }
+
+        if (tenantSubdomain && tenantTier !== "free") {
           if (pathname === "/manifest.json") {
-            const manifestUrl = new URL(
-              `/storefronts/${tenant.subdomain}/manifest`,
-              request.url
-            );
+            const manifestUrl = new URL(`/storefronts/${tenantSubdomain}/manifest`, request.url);
             return NextResponse.rewrite(manifestUrl);
           }
-
-          const rewriteUrl = new URL(
-            `/storefronts/${tenant.subdomain}${pathname}`,
-            request.url
-          );
+          const rewriteUrl = new URL(`/storefronts/${tenantSubdomain}${pathname}`, request.url);
           const response = NextResponse.rewrite(rewriteUrl);
-          response.headers.set("x-tenant-subdomain", tenant.subdomain);
+          response.headers.set("x-tenant-subdomain", tenantSubdomain);
           return response;
         }
       }

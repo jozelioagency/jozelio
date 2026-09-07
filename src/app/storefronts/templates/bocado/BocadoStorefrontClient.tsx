@@ -267,39 +267,64 @@ export default function BocadoStorefrontClient({
   }
   const showLocationsSection = showLocations && (location || parsedBranches.length > 0);
 
+  /**
+   * Sanitizes a user-supplied CSS color value to prevent CSS injection.
+   * Only allows: hex (#fff, #ffffff, #ffffffff), rgb(), rgba(), hsl(), hsla(),
+   * and common CSS named colors. Returns a safe fallback if validation fails.
+   */
+  function sanitizeColor(value: string | null | undefined, fallback: string): string {
+    if (!value) return fallback;
+    const trimmed = value.trim();
+    // Strict allowlist: hex, rgb/rgba, hsl/hsla — no semicolons, braces, or quotes
+    const SAFE_COLOR = /^(#[0-9a-fA-F]{3,8}|rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\)|rgba\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*[0-9.]+\s*\)|hsl\(\s*\d{1,3}\s*,\s*\d{1,3}%\s*,\s*\d{1,3}%\s*\)|hsla\(\s*\d{1,3}\s*,\s*\d{1,3}%\s*,\s*\d{1,3}%\s*,\s*[0-9.]+\s*\)|transparent|inherit|initial|unset)$/;
+    return SAFE_COLOR.test(trimmed) ? trimmed : fallback;
+  }
+
+  const safeThemePrimary = sanitizeColor(themePrimaryColor, "#f58a2d");
+  const safeThemeSecondary = sanitizeColor(themeSecondaryColor, "#113669");
+  const safeThemeNeutral = sanitizeColor(themeNeutralColor, "#eaeaea");
+  const safeNavbarBg = sanitizeColor(advancedColors.navbarBgColor, "transparent");
+  const safeNavbarText = sanitizeColor(advancedColors.navbarTextColor, safeThemeSecondary);
+  const safeFooterBg = sanitizeColor(advancedColors.footerBgColor, "transparent");
+  const safeFooterText = sanitizeColor(advancedColors.footerTextColor, safeThemeSecondary);
+  const safeCardBg = sanitizeColor(advancedColors.cardBgColor, "#ffffff");
+  const safeCardText = sanitizeColor(advancedColors.cardTextColor, safeThemeSecondary);
+  const safeBtnBg = sanitizeColor(advancedColors.buttonBgColor, safeThemePrimary);
+  const safeBtnText = sanitizeColor(advancedColors.buttonTextColor, "#ffffff");
+
   return (
     <div
       className={`min-h-screen bg-brand-bg text-brand-blue flex flex-col font-sans relative`}
     >
       <style dangerouslySetInnerHTML={{ __html: `
         :root {
-          --color-brand-orange: ${themePrimaryColor} !important;
-          --color-brand-blue: ${themeSecondaryColor} !important;
-          --color-brand-grey: ${themeNeutralColor} !important;
-          --color-brand-bg: ${themeNeutralColor} !important;
-          --color-brand-dark: ${themeSecondaryColor} !important;
+          --color-brand-orange: ${safeThemePrimary} !important;
+          --color-brand-blue: ${safeThemeSecondary} !important;
+          --color-brand-grey: ${safeThemeNeutral} !important;
+          --color-brand-bg: ${safeThemeNeutral} !important;
+          --color-brand-dark: ${safeThemeSecondary} !important;
 
-          --adv-navbar-bg: ${advancedColors.navbarBgColor || 'transparent'};
-          --adv-navbar-text: ${advancedColors.navbarTextColor || themeSecondaryColor};
-          --adv-footer-bg: ${advancedColors.footerBgColor || 'transparent'};
-          --adv-footer-text: ${advancedColors.footerTextColor || themeSecondaryColor};
-          --adv-card-bg: ${advancedColors.cardBgColor || '#ffffff'};
-          --adv-card-text: ${advancedColors.cardTextColor || themeSecondaryColor};
-          --adv-btn-bg: ${advancedColors.buttonBgColor || themePrimaryColor};
-          --adv-btn-text: ${advancedColors.buttonTextColor || '#ffffff'};
+          --adv-navbar-bg: ${safeNavbarBg};
+          --adv-navbar-text: ${safeNavbarText};
+          --adv-footer-bg: ${safeFooterBg};
+          --adv-footer-text: ${safeFooterText};
+          --adv-card-bg: ${safeCardBg};
+          --adv-card-text: ${safeCardText};
+          --adv-btn-bg: ${safeBtnBg};
+          --adv-btn-text: ${safeBtnText};
         }
         body {
-          background-color: ${themeNeutralColor} !important;
-          color: ${themeSecondaryColor} !important;
+          background-color: ${safeThemeNeutral} !important;
+          color: ${safeThemeSecondary} !important;
         }
         ::-webkit-scrollbar-thumb {
-          background: ${themeSecondaryColor} !important;
+          background: ${safeThemeSecondary} !important;
         }
         ::-webkit-scrollbar-thumb:hover {
-          background: ${themePrimaryColor} !important;
+          background: ${safeThemePrimary} !important;
         }
         ::-webkit-scrollbar-track {
-          background: ${themeNeutralColor} !important;
+          background: ${safeThemeNeutral} !important;
         }
       `}} />
       {/* Decorative Brand Light Gradients */}

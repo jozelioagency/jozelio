@@ -6,8 +6,14 @@ import { eq, sql } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import AdminClient from "./AdminClient";
 import { BrandLogo } from "@/components/BrandLogo";
+import type { Metadata } from "next";
 
 export const runtime = "edge";
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+  title: "Admin Console — Jozelio",
+};
 
 export default async function AdminPage() {
   // 1. Authenticate user session
@@ -116,9 +122,8 @@ export default async function AdminPage() {
 
   const totalMenuItems = totalMenuItemsRes?.count || 0;
 
-  // Resolve platform owner authority
-  const ownerEmail = (env as any).OWNER_EMAIL || "owner@jozelio.dev";
-  const isOwner = session.user.email === ownerEmail || (session.user as any).role === "owner";
+  // Resolve platform owner authority purely from DB role — no email fallback
+  const isOwner = (session.user as { role?: string }).role === "owner";
 
   return (
     <div className="min-h-screen bg-brand-bg text-brand-blue font-sans flex flex-col">
