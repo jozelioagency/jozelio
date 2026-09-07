@@ -1,0 +1,1 @@
+ALTER TABLE `tenants` ADD `languages_json` text DEFAULT '[]' NOT NULL;

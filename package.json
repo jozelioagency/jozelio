@@ -1,0 +1,43 @@
+{
+  "name": "platform",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "build:worker": "opennextjs-cloudflare",
+    "preview": "wrangler dev",
+    "start": "next start",
+    "lint": "eslint",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
+  },
+  "dependencies": {
+    "@better-auth/drizzle-adapter": "^1.6.23",
+    "@marsidev/react-turnstile": "^1.5.3",
+    "@opennextjs/cloudflare": "^1.20.1",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.38.0",
+    "better-auth": "^1.6.23",
+    "drizzle-orm": "^0.45.2",
+    "lucide-react": "^1.24.0",
+    "motion": "^12.42.2",
+    "next": "16.2.10",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "resend": "^6.17.2",
+    "wrangler": "^4.110.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260712.1",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "drizzle-kit": "^0.31.10",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.10",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

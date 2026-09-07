@@ -1,0 +1,33 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "jozelio-platform",
+  "compatibility_date": "2026-07-12",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // ─── D1 Database Binding ─────────────────────────────────
+  // After creating the database, replace database_id:
+  //   npx wrangler d1 create jozelio-db
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "jozelio-db",
+      "database_id": "5976f4a7-948a-4a0d-9c77-0208b7a7a0a6",
+      "migrations_dir": "drizzle/migrations"
+    }
+  ],
+
+  // ─── R2 Object Storage Binding ───────────────────────────
+  // After creating the bucket, update if needed:
+  //   npx wrangler r2 bucket create jozelio-assets
+  "r2_buckets": [
+    {
+      "binding": "BUCKET",
+      "bucket_name": "jozelio-assets"
+    }
+  ],
+
+  // ─── Workers AI Binding ──────────────────────────────────
+  "ai": {
+    "binding": "AI"
+  }
+}

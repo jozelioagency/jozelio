@@ -1,0 +1,1 @@
+ALTER TABLE `tenants` ADD `show_locations` integer DEFAULT true NOT NULL;
