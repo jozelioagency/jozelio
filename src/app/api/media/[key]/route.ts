@@ -11,8 +11,8 @@ export async function GET(
   try {
     const { key } = await props.params;
 
-    if (!key) {
-      return new Response("Media key is required", { status: 400 });
+    if (!key || !/^[a-zA-Z0-9_.-]+$/.test(key) || key.includes("..")) {
+      return new Response("Invalid media key", { status: 400 });
     }
 
     const { env } = getCloudflareContext();

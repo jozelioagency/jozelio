@@ -7,8 +7,56 @@ import BocadoStorefrontClient from "../templates/bocado/BocadoStorefrontClient";
 import { ShieldAlert } from "lucide-react";
 
 import { headers } from "next/headers";
+import type { Metadata } from "next";
 
 export const runtime = "edge";
+
+export async function generateMetadata(
+  props: { params: Promise<{ subdomain: string }> }
+): Promise<Metadata> {
+  const { subdomain } = await props.params;
+  if (!subdomain) return { title: "Storefront — Jozelio" };
+
+  try {
+    const { env } = getCloudflareContext();
+    const db = drizzle(env.DB, { schema });
+    const tenant = await db
+      .select({
+        businessName: schema.tenants.businessName,
+        pwaDisplayName: schema.tenants.pwaDisplayName,
+        pwaDescription: schema.tenants.pwaDescription,
+        logoUrl: schema.tenants.logoUrl,
+        iconUrl: schema.tenants.iconUrl,
+      })
+      .from(schema.tenants)
+      .where(eq(schema.tenants.subdomain, subdomain.toLowerCase()))
+      .get();
+
+    if (!tenant) return { title: "Storefront Not Found — Jozelio" };
+
+    const name = tenant.pwaDisplayName || tenant.businessName;
+    const desc = tenant.pwaDescription || `Browse the digital menu and offerings for ${name}.`;
+    const image = tenant.logoUrl || tenant.iconUrl;
+
+    return {
+      title: `${name} — Menu & Ordering`,
+      description: desc,
+      openGraph: {
+        title: name,
+        description: desc,
+        ...(image ? { images: [{ url: image }] } : {}),
+      },
+      twitter: {
+        card: image ? "summary_large_image" : "summary",
+        title: name,
+        description: desc,
+        ...(image ? { images: [image] } : {}),
+      },
+    };
+  } catch {
+    return { title: "Storefront — Jozelio" };
+  }
+}
 
 export default async function StorefrontPage(
   props: { 

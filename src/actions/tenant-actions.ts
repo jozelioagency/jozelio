@@ -455,14 +455,19 @@ export async function updateTenantProfile(data: {
       .run();
 
     if (newCustomDomain !== oldCustomDomain) {
-      let zoneId = process.env.CLOUDFLARE_ZONE_ID;
-      let apiToken = process.env.CLOUDFLARE_API_TOKEN;
-      try {
-        if (env) {
-          zoneId = zoneId || (env as any).CLOUDFLARE_ZONE_ID;
-          apiToken = apiToken || (env as any).CLOUDFLARE_API_TOKEN;
-        }
-      } catch {}
+      // Invalidate Redis cache for immediate propagation
+      const redisUrl = getEnv("UPSTASH_REDIS_REST_URL");
+      const redisToken = getEnv("UPSTASH_REDIS_REST_TOKEN");
+      if (redisUrl && redisToken) {
+        try {
+          const redis = new Redis({ url: redisUrl, token: redisToken });
+          if (oldCustomDomain) await redis.del(`customdomain:${oldCustomDomain}`);
+          if (newCustomDomain) await redis.del(`customdomain:${newCustomDomain}`);
+        } catch {}
+      }
+
+      const zoneId = getEnv("CLOUDFLARE_ZONE_ID");
+      const apiToken = getEnv("CLOUDFLARE_API_TOKEN");
 
       if (zoneId && apiToken) {
         // Delete old custom domain custom hostname from Cloudflare if it was set
