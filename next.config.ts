@@ -1,9 +1,12 @@
 import type { NextConfig } from "next";
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 
-// Initialize the Cloudflare dev environment so getCloudflareContext()
-// can access D1/R2 bindings during local development via `next dev`.
-initOpenNextCloudflareForDev();
+// Initialize the Cloudflare dev environment only during local development (`next dev`)
+// so getCloudflareContext() can access D1/R2 bindings without keeping active
+// connection handles open during CI/CD production builds.
+if (process.env.NODE_ENV === "development") {
+  initOpenNextCloudflareForDev();
+}
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
