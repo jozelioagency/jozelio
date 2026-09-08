@@ -11,6 +11,7 @@ import {
   type OtpType,
 } from "@/lib/email-templates";
 import { getEnv } from "@/lib/get-env";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 // ─── Constants ───────────────────────────────────────────────
 /**
@@ -51,7 +52,7 @@ const getResend = (): Resend => new Resend(process.env.RESEND_API_KEY);
  * to complete.
  */
 function sendEmailAsync(payload: Parameters<Resend["emails"]["send"]>[0]): void {
-  void getResend()
+  const emailPromise = getResend()
     .emails.send(payload)
     .then((res) => {
       if (res.error) {
@@ -61,6 +62,18 @@ function sendEmailAsync(payload: Parameters<Resend["emails"]["send"]>[0]): void 
     .catch((err: unknown) => {
       console.error("[Jozelio/Resend] Unhandled email send failure:", err);
     });
+
+  try {
+    const cf = getCloudflareContext();
+    if (cf?.ctx?.waitUntil) {
+      cf.ctx.waitUntil(emailPromise);
+      return;
+    }
+  } catch {
+    // Non-Cloudflare / standard Node context
+  }
+
+  void emailPromise;
 }
 
 // ─── Auth Factory ─────────────────────────────────────────────
@@ -144,10 +157,14 @@ export function createAuth(d1: D1Database) {
 
     // ─── Social Login Providers ──────────────────────────
     socialProviders: {
-      google: {
-        clientId: getEnv("GOOGLE_CLIENT_ID") || "",
-        clientSecret: getEnv("GOOGLE_CLIENT_SECRET") || "",
-      },
+      ...(getEnv("GOOGLE_CLIENT_ID") && getEnv("GOOGLE_CLIENT_SECRET")
+        ? {
+            google: {
+              clientId: getEnv("GOOGLE_CLIENT_ID")!,
+              clientSecret: getEnv("GOOGLE_CLIENT_SECRET")!,
+            },
+          }
+        : {}),
     },
 
     // ─── Email & Password Auth ────────────────────────────

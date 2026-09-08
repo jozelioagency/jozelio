@@ -297,6 +297,7 @@ export const analyticsEvents = sqliteTable(
   },
   (table) => [
     index("idx_analytics_tenant_created").on(table.tenantId, table.createdAt),
+    index("idx_analytics_visitor_hash").on(table.visitorHash),
   ]
 );
 
@@ -337,5 +338,51 @@ export const notifications = sqliteTable(
     index("idx_notifications_user_read").on(table.userId, table.isRead),
   ]
 );
+
+/**
+ * Accounting Transactions table — records revenues, expenses, invoices, and refunds.
+ */
+export const accountingTransactions = sqliteTable(
+  "accounting_transactions",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    /** 'revenue' | 'expense' */
+    type: text("type", { enum: ["revenue", "expense"] }).notNull(),
+    /** Category: 'subscription', 'setup_fee', 'custom_domain', 'cloudflare', 'upstash', 'resend', 'ai', 'salary', 'marketing', 'other' */
+    category: text("category").notNull(),
+    description: text("description").notNull(),
+    /** Amount in main units (e.g. 500 = 500 EGP / USD) */
+    amount: integer("amount").notNull(),
+    currency: text("currency").notNull().default("EGP"),
+    /** Optional tenant association */
+    tenantId: text("tenant_id").references(() => tenants.id, { onDelete: "set null" }),
+    entityName: text("entity_name"),
+    /** 'paid' | 'pending' | 'refunded' | 'cancelled' */
+    status: text("status", { enum: ["paid", "pending", "refunded", "cancelled"] })
+      .notNull()
+      .default("paid"),
+    paymentMethod: text("payment_method").notNull().default("other"),
+    invoiceNumber: text("invoice_number"),
+    notes: text("notes"),
+    transactionDate: integer("transaction_date", { mode: "timestamp" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    index("idx_accounting_type_date").on(table.type, table.transactionDate),
+    index("idx_accounting_tenant").on(table.tenantId),
+  ]
+);
+
+export type AccountingTransaction = typeof accountingTransactions.$inferSelect;
+export type NewAccountingTransaction = typeof accountingTransactions.$inferInsert;
 
 

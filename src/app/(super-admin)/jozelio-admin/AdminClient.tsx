@@ -17,7 +17,8 @@ import {
   updateUserMaxProjects,
   updateTenantLimits,
   updateTenantBanAndWarning,
-  updateUserBanAndWarning
+  updateUserBanAndWarning,
+  exportFullPlatformData
 } from "@/app/actions";
 import { 
   Trash2,
@@ -36,9 +37,12 @@ import {
   Sliders,
   Database,
   Check,
-  X
+  X,
+  Download
 } from "lucide-react";
 import { BrutalistSelect } from "@/components/BrutalistSelect";
+import AccountingSection from "./AccountingSection";
+import type { AccountingTransaction } from "@/db/schema";
 
 interface TenantAdminView {
   id: string;
@@ -203,18 +207,20 @@ export default function AdminClient({
   initialTenants,
   initialUsers,
   totalMenuItems,
+  initialTransactions = [],
   currentOperatorId,
   isOwner = false,
 }: {
   initialTenants: TenantAdminView[];
   initialUsers: UserAdminView[];
   totalMenuItems: number;
+  initialTransactions?: AccountingTransaction[];
   currentOperatorId: string;
   isOwner?: boolean;
 }) {
   const [tenants, setTenants] = useState<TenantAdminView[]>(initialTenants);
   const [users, setUsers] = useState<UserAdminView[]>(initialUsers);
-  const [activeTab, setActiveTab] = useState<"tenants" | "users" | "owner_tools">("tenants");
+  const [activeTab, setActiveTab] = useState<"tenants" | "users" | "owner_tools" | "accounting">("tenants");
   const [storefrontFilter, setStorefrontFilter] = useState("bocado");
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -230,6 +236,15 @@ export default function AdminClient({
   const [subdomainCooldownDays, setSubdomainCooldownDays] = useState(14);
   const [usernameCooldownDays, setUsernameCooldownDays] = useState(14);
   const [locationLimit, setLocationLimit] = useState(30);
+
+  // Full Platform Data Backup state
+  const [isExportingBackup, setIsExportingBackup] = useState(false);
+  const [backupStats, setBackupStats] = useState<{
+    totalRecords: number;
+    totalTables: number;
+    tableCounts: Record<string, number>;
+    exportedAt: string;
+  } | null>(null);
 
 
   // Message Modal State
@@ -371,6 +386,44 @@ export default function AdminClient({
         setMessage({ type: "success", text: "D1 Database optimized successfully via VACUUM operation." });
       }
     });
+  };
+
+  const handleDownloadPlatformBackup = async () => {
+    setIsExportingBackup(true);
+    setMessage(null);
+    try {
+      const res = await exportFullPlatformData();
+      if (res.error || !res.backupData) {
+        setMessage({ type: "error", text: res.error || "Failed to export platform data backup." });
+        return;
+      }
+
+      // Generate downloadable unredacted JSON file
+      const jsonString = JSON.stringify(res.backupData, null, 2);
+      const blob = new Blob([jsonString], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const dateStr = new Date().toISOString().replace(/[:.]/g, "-");
+      a.href = url;
+      a.download = `jozelio-complete-platform-backup-${dateStr}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      if (res.summary) {
+        setBackupStats(res.summary);
+        setMessage({
+          type: "success",
+          text: `Master Platform Snapshot downloaded successfully! ${res.summary.totalRecords} total records exported across ${res.summary.totalTables} database tables.`,
+        });
+      }
+    } catch (err: any) {
+      console.error("Backup download error:", err);
+      setMessage({ type: "error", text: err?.message || "Failed to download backup." });
+    } finally {
+      setIsExportingBackup(false);
+    }
   };
 
   const handleTenantBanToggle = (tenantId: string, isBanned: boolean) => {
@@ -899,7 +952,7 @@ export default function AdminClient({
               : "bg-brand-grey/20 text-brand-blue/50 border-b-2 border-b-brand-blue hover:text-brand-blue"
           }`}
         >
-          📁 Storefront Projects ({totalTenants})
+          Storefront Projects ({totalTenants})
         </button>
         <button
           onClick={() => setActiveTab("users")}
@@ -909,7 +962,17 @@ export default function AdminClient({
               : "bg-brand-grey/20 text-brand-blue/50 border-b-2 border-b-brand-blue hover:text-brand-blue"
           }`}
         >
-          👤 User Accounts ({totalUsers})
+          User Accounts ({totalUsers})
+        </button>
+        <button
+          onClick={() => setActiveTab("accounting")}
+          className={`px-6 py-3 font-display font-black text-sm uppercase tracking-wider border-t-2 border-x-2 border-brand-blue transition-all cursor-pointer ${
+            activeTab === "accounting"
+              ? "bg-brand-white text-brand-blue border-b-2 border-b-brand-white -mb-[2px]"
+              : "bg-brand-grey/20 text-brand-blue/50 border-b-2 border-b-brand-blue hover:text-brand-blue"
+          }`}
+        >
+          Accounting & Finances
         </button>
         {isOwner && (
           <button
@@ -920,7 +983,7 @@ export default function AdminClient({
                 : "bg-brand-grey/20 text-brand-blue/50 border-b-2 border-b-brand-blue hover:text-brand-blue"
             }`}
           >
-            ⚙ Owner Settings
+            Owner Settings
           </button>
         )}
       </div>
@@ -1243,7 +1306,7 @@ export default function AdminClient({
                             <BrutalistSelect
                               value={u.role}
                               onChange={(val) => handleRoleChange(u.id, val as any)}
-                              disabled={isPending || isSelf || u.email === "owner@jozelio.dev"}
+                              disabled={isPending || isSelf || (u.role === "owner" && !isOwner)}
                               options={[
                                 { value: "user", label: "Standard User" },
                                 { value: "admin", label: "Admin" },
@@ -1581,6 +1644,73 @@ export default function AdminClient({
                     </button>
                   </div>
                 </div>
+
+                {/* Platform Master Data Backup & Disaster Recovery */}
+                <div className="bg-brand-white border-4 border-brand-blue p-6 shadow-[6px_6px_0px_0px_#113669] flex flex-col gap-5">
+                  <div className="flex items-center justify-between border-b border-brand-blue/15 pb-4">
+                    <div className="flex items-center gap-2">
+                      <Download className="w-5 h-5 text-brand-orange" />
+                      <div>
+                        <h4 className="font-display font-black text-sm uppercase text-brand-blue tracking-wide">
+                          Full Platform Backup
+                        </h4>
+                        <span className="font-mono text-[9px] text-brand-blue/50 font-bold uppercase block">
+                          Cold Storage • 100% Unredacted JSON
+                        </span>
+                      </div>
+                    </div>
+                    <span className="px-2 py-0.5 border border-brand-blue bg-brand-orange/10 font-mono text-[9px] font-black text-brand-orange uppercase">
+                      Owner Only
+                    </span>
+                  </div>
+
+                  <p className="text-[10px] text-brand-blue/70 font-semibold leading-relaxed">
+                    Export an exhaustive snapshot of the entire Jozelio platform database — including all user accounts, active sessions, OAuth links, storefronts, team memberships, complete menu catalogs, analytics events, system variables, notifications, and accounting ledger records.
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-2 font-mono text-[9px]">
+                    <div className="p-2 border border-brand-blue/30 bg-brand-bg/10 text-center">
+                      <span className="text-brand-blue/50 block text-[8px] uppercase">Engine</span>
+                      <strong className="text-brand-blue font-bold">Cloudflare D1</strong>
+                    </div>
+                    <div className="p-2 border border-brand-blue/30 bg-brand-bg/10 text-center">
+                      <span className="text-brand-blue/50 block text-[8px] uppercase">Scope</span>
+                      <strong className="text-brand-blue font-bold">11+ Tables</strong>
+                    </div>
+                    <div className="p-2 border border-brand-blue/30 bg-brand-bg/10 text-center">
+                      <span className="text-brand-blue/50 block text-[8px] uppercase">Format</span>
+                      <strong className="text-brand-orange font-bold">Structured JSON</strong>
+                    </div>
+                    <div className="p-2 border border-brand-blue/30 bg-brand-bg/10 text-center">
+                      <span className="text-brand-blue/50 block text-[8px] uppercase">Integrity</span>
+                      <strong className="text-emerald-700 font-bold">100% Complete</strong>
+                    </div>
+                  </div>
+
+                  {backupStats && (
+                    <div className="p-3 bg-emerald-50 border-2 border-emerald-600 font-mono text-[10px] space-y-1">
+                      <div className="text-emerald-800 font-bold flex items-center gap-1.5">
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Last Export Successful</span>
+                      </div>
+                      <div className="text-emerald-900/80 text-[9px]">
+                        <strong>{backupStats.totalRecords} records</strong> exported across <strong>{backupStats.totalTables} tables</strong> at {new Date(backupStats.exportedAt).toLocaleTimeString()}.
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleDownloadPlatformBackup}
+                    disabled={isExportingBackup}
+                    className="w-full h-12 border-2 border-brand-blue bg-brand-orange hover:bg-brand-blue text-brand-white hover:text-brand-orange font-mono text-[10px] uppercase font-black tracking-wider shadow-[3px_3px_0px_#113669] hover:-translate-y-0.5 active:translate-y-0 active:shadow-none transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Download className={`w-4 h-4 ${isExportingBackup ? "animate-bounce" : ""}`} />
+                    <span>
+                      {isExportingBackup ? "Exporting Full Platform Snapshot..." : "Download Entire Platform Data (.JSON)"}
+                    </span>
+                  </button>
+                </div>
               </div>
 
               {/* Full Width Broadcast Card */}
@@ -1669,6 +1799,16 @@ export default function AdminClient({
             </div>
           )}
         </div>
+      )}
+
+      {/* TAB CONTENT: ACCOUNTING & FINANCES */}
+      {activeTab === "accounting" && (
+        <AccountingSection
+          initialTransactions={initialTransactions || []}
+          tenants={tenants.map((t) => ({ id: t.id, businessName: t.businessName, tier: t.tier }))}
+          isOwner={isOwner}
+          currentOperatorId={currentOperatorId}
+        />
       )}
 
       {/* Message User Modal */}

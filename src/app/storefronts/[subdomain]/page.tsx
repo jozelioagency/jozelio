@@ -71,7 +71,8 @@ export default async function StorefrontPage(
   }
 
   // 1. Fetch tenant details from D1
-  const { env } = getCloudflareContext();
+  const cf = getCloudflareContext();
+  const { env, ctx } = cf;
   const db = drizzle(env.DB, { schema });
   const tenant = await db
     .select()
@@ -142,7 +143,7 @@ export default async function StorefrontPage(
     .join("");
 
   // Only insert if this visitor has not been counted today
-  ;(async () => {
+  const logAnalyticsPromise = (async () => {
     try {
       const existing = await db
         .select({ id: schema.analyticsEvents.id })
@@ -163,6 +164,10 @@ export default async function StorefrontPage(
       console.error("Failed to log analytics event:", err);
     }
   })();
+
+  if (ctx?.waitUntil) {
+    ctx.waitUntil(logAnalyticsPromise);
+  }
 
 
 

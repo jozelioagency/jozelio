@@ -18,6 +18,7 @@ import { Ratelimit } from "@upstash/ratelimit";
 
 
 
+const ROOT_DOMAIN = process.env.NEXT_PUBLIC_APP_DOMAIN || "jozelio.dev";
 const RESERVED_SUBDOMAINS = ["www", "api", "admin", "jozelio", "portal", "media", "auth", "static", "assets"];
 
 
@@ -161,18 +162,10 @@ export async function updateTenantTier(
     const { env } = getCloudflareContext();
     const db = drizzle(env.DB, { schema });
 
-    const userRole = (session.user as any).role; const isSuperAdmin = userRole === "admin" || userRole === "owner";
-    let isAuthorized = isSuperAdmin;
-
-    if (!isAuthorized) {
-      const tenant = await checkUserProjectPermission(db, tenantId, session.user.id, ["owner", "admin"]);
-      if (tenant) {
-        isAuthorized = true;
-      }
-    }
-
-    if (!isAuthorized) {
-      return { error: "Unauthorized" };
+    const userRole = (session.user as any).role;
+    const isSuperAdmin = userRole === "admin" || userRole === "owner";
+    if (!isSuperAdmin) {
+      return { error: "Unauthorized: Only platform administrators can change subscription tiers." };
     }
 
     await db
@@ -311,6 +304,34 @@ export async function updateTenantProfile(data: {
 
     const oldCustomDomain = tenant.customDomain;
     const newCustomDomain = data.customDomain ? data.customDomain.trim().toLowerCase() : null;
+
+    if (newCustomDomain) {
+      // Validate domain hostname format (RFC 1123)
+      const domainRegex = /^(?!:\/\/)([a-zA-Z0-9-_]+\.)*[a-zA-Z0-9][a-zA-Z0-9-_]+\.[a-zA-Z]{2,11}?$/;
+      if (!domainRegex.test(newCustomDomain)) {
+        return { error: "Invalid custom domain format. Example: menu.myrestaurant.com" };
+      }
+
+      if (newCustomDomain === ROOT_DOMAIN || newCustomDomain.endsWith("." + ROOT_DOMAIN)) {
+        return { error: "Cannot use platform root domain or subdomains as a custom domain." };
+      }
+
+      // Check collision with other tenants
+      const existingDomain = await db
+        .select({ id: schema.tenants.id })
+        .from(schema.tenants)
+        .where(
+          and(
+            eq(schema.tenants.customDomain, newCustomDomain),
+            ne(schema.tenants.id, data.tenantId)
+          )
+        )
+        .get();
+
+      if (existingDomain) {
+        return { error: "This custom domain is already registered to another project." };
+      }
+    }
 
     let logoUrl = data.logoUrl || null;
     let themePrimaryColor = data.themePrimaryColor || "#f58a2d";
@@ -801,6 +822,42 @@ export async function deleteProject(tenantId: string) {
 
     if (tenant.userId !== session.user.id) {
       return { error: "Only the primary owner can delete this project" };
+    }
+
+    // Clean up R2 storage assets for this project
+    if (env.BUCKET) {
+      try {
+        const menuImages = await db
+          .select({ imageUrl: schema.menuItems.imageUrl })
+          .from(schema.menuItems)
+          .where(eq(schema.menuItems.tenantId, tenantId))
+          .all();
+
+        for (const item of menuImages) {
+          if (item.imageUrl) {
+            const key = item.imageUrl.includes("/api/media/")
+              ? item.imageUrl.split("/api/media/")[1]
+              : item.imageUrl.split("/").pop();
+            if (key) await env.BUCKET.delete(key).catch(() => {});
+          }
+        }
+
+        if (tenant.logoUrl) {
+          const key = tenant.logoUrl.includes("/api/media/")
+            ? tenant.logoUrl.split("/api/media/")[1]
+            : tenant.logoUrl.split("/").pop();
+          if (key) await env.BUCKET.delete(key).catch(() => {});
+        }
+
+        if (tenant.iconUrl) {
+          const key = tenant.iconUrl.includes("/api/media/")
+            ? tenant.iconUrl.split("/api/media/")[1]
+            : tenant.iconUrl.split("/").pop();
+          if (key) await env.BUCKET.delete(key).catch(() => {});
+        }
+      } catch (r2Err) {
+        console.warn("Failed to clean up R2 objects for project:", r2Err);
+      }
     }
 
     // 2. Delete tenant (cascade deletes will clear all tables)

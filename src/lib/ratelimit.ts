@@ -17,10 +17,15 @@ export function getRatelimit(): Ratelimit | null {
 
   if (!url || !token) {
     if (process.env.NODE_ENV === "production") {
-      console.error(
-        "🚨 SECURITY: Upstash Redis credentials missing in production — rate limiting is DISABLED."
+      throw new Error(
+        "[Jozelio] FATAL: Upstash Redis credentials (UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN) " +
+        "are missing in production. Rate limiting cannot be disabled in production — this is a security requirement. " +
+        "Set them via 'wrangler secret put' or add them to your environment."
       );
     }
+    console.warn(
+      "⚠️ Upstash Redis credentials not configured — rate limiting is bypassed in development."
+    );
     return null;
   }
 

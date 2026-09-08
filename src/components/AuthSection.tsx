@@ -87,10 +87,30 @@ export default function AuthSection({ selectedLanguage, activeMode, onModeChange
           callbackURL: "/dashboard",
         });
         if (res?.error) {
-          setMessage({ type: "error", text: res.error.message || t.errorOccurred });
+          const errMsg = res.error.message || "";
+          if (errMsg.includes("CLIENT_ID") || errMsg.includes("provider") || errMsg.includes("not found")) {
+            setMessage({
+              type: "error",
+              text: isRtl
+                ? "تسجيل الدخول عبر Google غير مفعل حالياً. الرجاء تسجيل الدخول بالبريد الإلكتروني وكلمة المرور."
+                : "Google Sign-In is not configured yet. Please sign in with your email and password.",
+            });
+          } else {
+            setMessage({ type: "error", text: errMsg || t.errorOccurred });
+          }
         }
       } catch (err: any) {
-        setMessage({ type: "error", text: err?.message || t.errorOccurred });
+        const errMsg = err?.message || "";
+        if (errMsg.includes("CLIENT_ID") || errMsg.includes("provider")) {
+          setMessage({
+            type: "error",
+            text: isRtl
+              ? "تسجيل الدخول عبر Google غير مفعل حالياً. الرجاء تسجيل الدخول بالبريد الإلكتروني وكلمة المرور."
+              : "Google Sign-In is not configured yet. Please sign in with your email and password.",
+          });
+        } else {
+          setMessage({ type: "error", text: errMsg || t.errorOccurred });
+        }
       }
     });
   };

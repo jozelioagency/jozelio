@@ -185,17 +185,25 @@ export async function acceptInvitation(token: string) {
       return { error: "This invitation link has expired. Please ask the workspace owner to send a new one." };
     }
 
-    // Attempt to resolve the user from the current session
+    // Must be logged in to accept an invitation
     const session = await getSession();
-    const resolvedUserId = session?.user?.id ?? invite.userId ?? null;
+    if (!session) {
+      return {
+        requiresAuth: true,
+        email: invite.email,
+        error: "Please sign in or create an account to accept this workspace invitation.",
+      };
+    }
 
-    // If a logged-in user's email doesn't match the invite target, refuse
-    if (session && session.user.email.toLowerCase() !== invite.email.toLowerCase()) {
+    // If logged-in user's email doesn't match the invite target, refuse
+    if (session.user.email.toLowerCase() !== invite.email.toLowerCase()) {
       return {
         error: `This invitation was sent to ${invite.email}. Please sign in with that email address to accept it.`,
         wrongAccount: true,
       };
     }
+
+    const resolvedUserId = session.user.id;
 
     // Mark invite accepted and clear the token
     await db

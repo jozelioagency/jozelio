@@ -229,6 +229,20 @@ export async function deleteMenuItem(itemId: string): Promise<ActionResponse> {
     const tenant = await checkUserProjectPermission(db, item.tenantId, session.user.id, ["owner", "admin", "manager"]);
     if (!tenant) return { error: "Unauthorized role" };
 
+    // Clean up image in R2 storage
+    if (item.imageUrl && env.BUCKET) {
+      try {
+        const key = item.imageUrl.includes("/api/media/")
+          ? item.imageUrl.split("/api/media/")[1]
+          : item.imageUrl.split("/").pop();
+        if (key) {
+          await env.BUCKET.delete(key);
+        }
+      } catch (r2Err) {
+        console.warn("Failed to delete R2 image for menu item:", r2Err);
+      }
+    }
+
     await db
       .delete(schema.menuItems)
       .where(eq(schema.menuItems.id, itemId))

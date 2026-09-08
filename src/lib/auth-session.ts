@@ -1,14 +1,6 @@
 import { createAuth } from "@/lib/auth";
-import { getCloudflareContext, initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { headers } from "next/headers";
-
-if (process.env.NODE_ENV === "development") {
-  try {
-    initOpenNextCloudflareForDev();
-  } catch (e) {
-    console.warn("initOpenNextCloudflareForDev error:", e);
-  }
-}
 
 /**
  * Server-side session verification for Server Components and Server Actions.

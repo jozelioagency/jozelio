@@ -10,6 +10,7 @@ type State =
   | { status: "success"; tenantId: string }
   | { status: "alreadyAccepted" }
   | { status: "wrongAccount"; email: string }
+  | { status: "requiresAuth"; email?: string }
   | { status: "error"; message: string };
 
 export default function AcceptInvitePage() {
@@ -28,6 +29,8 @@ export default function AcceptInvitePage() {
     acceptInvitation(token).then((res) => {
       if (res.success && res.tenantId) {
         setState({ status: "success", tenantId: res.tenantId });
+      } else if (res.requiresAuth) {
+        setState({ status: "requiresAuth", email: res.email });
       } else if (res.alreadyAccepted) {
         setState({ status: "alreadyAccepted" });
       } else if (res.wrongAccount) {
@@ -167,6 +170,41 @@ export default function AcceptInvitePage() {
                 }}
               >
                 Go to Dashboard →
+              </button>
+            </div>
+          )}
+
+          {state.status === "requiresAuth" && (
+            <div style={{ textAlign: "center" }}>
+              <LogIn style={{ width: 48, height: 48, color: "#FF6B00", margin: "0 auto 16px" }} />
+              <h1 style={{ fontSize: 20, fontWeight: 800, color: "#e6edf3", marginBottom: 8 }}>
+                Sign In Required
+              </h1>
+              <p style={{ fontSize: 14, color: "#8b949e", marginBottom: 28, lineHeight: 1.6 }}>
+                Please sign in or create an account to accept this invitation.
+                {state.email && (
+                  <>
+                    {" "}This invitation was sent to{" "}
+                    <strong style={{ color: "#FF6B00" }}>{state.email}</strong>.
+                  </>
+                )}
+              </p>
+              <button
+                onClick={() => router.push("/?mode=signin")}
+                style={{
+                  display: "inline-block",
+                  background: "#FF6B00",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 6,
+                  padding: "12px 28px",
+                  fontWeight: 700,
+                  fontSize: 14,
+                  cursor: "pointer",
+                  width: "100%",
+                }}
+              >
+                Sign In to Accept →
               </button>
             </div>
           )}

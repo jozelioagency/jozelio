@@ -11,6 +11,7 @@ import { headers } from "next/headers";
 import { Resend } from "resend";
 import { invitationEmailHtml, systemNoticeEmail } from "@/lib/email-templates";
 import { verifyTurnstileToken } from "@/lib/turnstile";
+import { getRatelimit } from "@/lib/ratelimit";
 import { handleActionError, validateLength, MAX_LENGTHS } from "./_shared";
 import { getEnv } from "@/lib/get-env";
 
@@ -52,13 +53,16 @@ export async function registerUser(formData: Record<string, string>) {
 
     // Turnstile bot prevention validation
     const turnstileSecretKey = getEnv("TURNSTILE_SECRET_KEY");
+    const isDev = process.env.NODE_ENV !== "production";
+    const isTestKey = turnstileSecretKey?.startsWith("1x000000") || turnstileSecretKey?.startsWith("2x000000");
+
     if (!turnstileToken) {
-      if (turnstileSecretKey) {
+      if (turnstileSecretKey && !isDev && !isTestKey) {
         return { error: "Security check token is missing. Please reload the page." };
       }
     } else {
       const isHuman = await verifyTurnstileToken(turnstileToken, clientIp);
-      if (!isHuman) {
+      if (!isHuman && !isTestKey && !isDev) {
         return { error: "Security check failed. Please refresh the page and try again." };
       }
     }
@@ -179,14 +183,29 @@ export async function completeUserOnboarding(data: {
 /**
  * Server action to get email address associated with a username.
  * Used to support email or username sign-in.
+ *
+ * Rate limited by IP to prevent email enumeration attacks.
  */
 export async function getEmailByUsername(username: string) {
   try {
-    const session = await getSession();
-    if (!session) return { error: "Unauthorized" };
     const cleanUsername = username.trim().toLowerCase();
     if (!cleanUsername) {
       return { error: "Username is required" };
+    }
+
+    // ─── Rate Limiting (anti-enumeration) ──────────────────
+    const rl = getRatelimit();
+    if (rl) {
+      const hdrs = await headers();
+      const ip =
+        hdrs.get("cf-connecting-ip") ??
+        hdrs.get("x-forwarded-for")?.split(",")[0] ??
+        hdrs.get("x-real-ip") ??
+        "unknown";
+      const { success } = await rl.limit(`username_lookup:${ip}`);
+      if (!success) {
+        return { error: "Too many requests. Please wait a moment and try again." };
+      }
     }
 
     const { env } = getCloudflareContext();

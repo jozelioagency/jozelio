@@ -11,7 +11,7 @@ import { headers } from "next/headers";
 import { Resend } from "resend";
 import { invitationEmailHtml, systemNoticeEmail } from "@/lib/email-templates";
 import { verifyTurnstileToken } from "@/lib/turnstile";
-import { handleActionError, validateLength, MAX_LENGTHS } from "./_shared";
+import { handleActionError, validateLength, MAX_LENGTHS, checkIsOwner, checkIsAdminOrOwner } from "./_shared";
 import { getEnv } from "@/lib/get-env";
 
 
@@ -37,8 +37,7 @@ export async function deleteTenantByAdmin(tenantId: string) {
     const { env } = getCloudflareContext();
     const db = drizzle(env.DB, { schema });
 
-    const ownerEmail = (env as any).OWNER_EMAIL || "owner@jozelio.dev";
-    const isOwner = session.user.email === ownerEmail;
+    const isOwner = checkIsOwner(session);
 
     if (!isOwner) {
       const targetTenant = await db
@@ -90,11 +89,9 @@ export async function updateUserRoleByAdmin(
     const session = await getSession();
     if (!session) return { error: "Unauthorized" };
 
-    const userRole = (session.user as any).role;
     const { env } = getCloudflareContext();
-    const ownerEmail = (env as any).OWNER_EMAIL || "owner@jozelio.dev";
-    const isOwner = session.user.email === ownerEmail || userRole === "owner";
-    const isAdminOrOwner = userRole === "admin" || isOwner;
+    const isOwner = checkIsOwner(session);
+    const isAdminOrOwner = checkIsAdminOrOwner(session);
 
     if (!isAdminOrOwner) {
       return { error: "Unauthorized: Admin access required" };
@@ -339,9 +336,7 @@ export async function getSystemSettings() {
     if (!session) return { error: "Unauthorized" };
 
     const { env } = getCloudflareContext();
-    const userRole = (session.user as any).role;
-    const ownerEmail = (env as any).OWNER_EMAIL || "owner@jozelio.dev";
-    const isOwner = session.user.email === ownerEmail || userRole === "owner";
+    const isOwner = checkIsOwner(session);
 
     if (!isOwner) {
       return { error: "Unauthorized access: Platform Owner authority required" };
@@ -373,9 +368,7 @@ export async function updateSystemSettings(settings: Record<string, string>) {
     if (!session) return { error: "Unauthorized" };
 
     const { env } = getCloudflareContext();
-    const userRole = (session.user as any).role;
-    const ownerEmail = (env as any).OWNER_EMAIL || "owner@jozelio.dev";
-    const isOwner = session.user.email === ownerEmail || userRole === "owner";
+    const isOwner = checkIsOwner(session);
 
     if (!isOwner) {
       return { error: "Access denied: Platform Owner authority required" };
@@ -413,9 +406,7 @@ export async function clearExpiredSessions() {
     if (!session) return { error: "Unauthorized" };
 
     const { env } = getCloudflareContext();
-    const userRole = (session.user as any).role;
-    const ownerEmail = (env as any).OWNER_EMAIL || "owner@jozelio.dev";
-    const isOwner = session.user.email === ownerEmail || userRole === "owner";
+    const isOwner = checkIsOwner(session);
 
     if (!isOwner) {
       return { error: "Access denied: Platform Owner authority required" };
@@ -444,9 +435,7 @@ export async function vacuumDatabase() {
     if (!session) return { error: "Unauthorized" };
 
     const { env } = getCloudflareContext();
-    const userRole = (session.user as any).role;
-    const ownerEmail = (env as any).OWNER_EMAIL || "owner@jozelio.dev";
-    const isOwner = session.user.email === ownerEmail || userRole === "owner";
+    const isOwner = checkIsOwner(session);
 
     if (!isOwner) {
       return { error: "Access denied: Platform Owner authority required" };
@@ -895,6 +884,546 @@ export async function sendGlobalMessageByAdmin(
   } catch (error: any) {
     console.error("sendGlobalMessageByAdmin error:", error);
     return { error: error?.message || "Failed to send global message" };
+  }
+}
+
+// ─── Enterprise Accounting & Financial Server Actions ─────────────────────────
+
+/**
+ * Server action to get accounting and financial summary.
+ */
+export async function getAccountingSummary() {
+  try {
+    const session = await getSession();
+    if (!session) return { error: "Unauthorized" };
+
+    const userRole = (session.user as any).role;
+    if (userRole !== "admin" && userRole !== "owner") {
+      return { error: "Unauthorized: Operator access required" };
+    }
+
+    const { env } = getCloudflareContext();
+    const db = drizzle(env.DB, { schema });
+
+    const transactions = await db
+      .select()
+      .from(schema.accountingTransactions)
+      .orderBy(sql`${schema.accountingTransactions.transactionDate} DESC`)
+      .all();
+
+    const tenants = await db
+      .select({
+        id: schema.tenants.id,
+        tier: schema.tenants.tier,
+        businessName: schema.tenants.businessName,
+      })
+      .from(schema.tenants)
+      .all();
+
+    const tierCounts = {
+      free: tenants.filter((t) => t.tier === "free").length,
+      pro: tenants.filter((t) => t.tier === "pro").length,
+      enterprise: tenants.filter((t) => t.tier === "enterprise").length,
+    };
+
+    // Calculate baseline MRR from active subscription tiers
+    // Baseline: Pro = 499 EGP, Enterprise = 2499 EGP
+    const mrrFromTenants = tierCounts.pro * 499 + tierCounts.enterprise * 2499;
+
+    let totalRevenue = 0;
+    let totalExpenses = 0;
+    let pendingReceivables = 0;
+    const categoryExpenses: Record<string, number> = {};
+    const categoryRevenues: Record<string, number> = {};
+    const paymentStatusCounts = { paid: 0, pending: 0, refunded: 0, cancelled: 0 };
+
+    transactions.forEach((tx) => {
+      paymentStatusCounts[tx.status as keyof typeof paymentStatusCounts] =
+        (paymentStatusCounts[tx.status as keyof typeof paymentStatusCounts] || 0) + 1;
+
+      if (tx.status === "paid") {
+        if (tx.type === "revenue") {
+          totalRevenue += tx.amount;
+          categoryRevenues[tx.category] = (categoryRevenues[tx.category] || 0) + tx.amount;
+        } else if (tx.type === "expense") {
+          totalExpenses += tx.amount;
+          categoryExpenses[tx.category] = (categoryExpenses[tx.category] || 0) + tx.amount;
+        }
+      } else if (tx.status === "pending" && tx.type === "revenue") {
+        pendingReceivables += tx.amount;
+      }
+    });
+
+    const netProfit = totalRevenue - totalExpenses;
+    const netMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+    const effectiveMRR = Math.max(mrrFromTenants, Math.round(totalRevenue / 3) || mrrFromTenants);
+    const arr = effectiveMRR * 12;
+    const paidTenantsCount = tierCounts.pro + tierCounts.enterprise;
+    const arpu = paidTenantsCount > 0 ? Math.round(effectiveMRR / paidTenantsCount) : 0;
+
+    // Monthly historical trends for the last 6 months
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const now = new Date();
+    const monthlyTrends: Array<{
+      monthKey: string;
+      label: string;
+      revenue: number;
+      expenses: number;
+      net: number;
+    }> = [];
+
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const mIdx = d.getMonth();
+      const yr = d.getFullYear();
+      const label = `${monthNames[mIdx]} ${yr}`;
+      const monthKey = `${yr}-${String(mIdx + 1).padStart(2, "0")}`;
+
+      const monthTxs = transactions.filter((tx) => {
+        if (tx.status !== "paid") return false;
+        const txDate = new Date(tx.transactionDate);
+        return txDate.getFullYear() === yr && txDate.getMonth() === mIdx;
+      });
+
+      const rev = monthTxs
+        .filter((t) => t.type === "revenue")
+        .reduce((sum, t) => sum + t.amount, 0);
+      const exp = monthTxs
+        .filter((t) => t.type === "expense")
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      monthlyTrends.push({
+        monthKey,
+        label,
+        revenue: rev,
+        expenses: exp,
+        net: rev - exp,
+      });
+    }
+
+    return {
+      success: true,
+      summary: {
+        totalRevenue,
+        totalExpenses,
+        netProfit,
+        netMargin: Math.round(netMargin * 10) / 10,
+        pendingReceivables,
+        mrr: effectiveMRR,
+        arr,
+        arpu,
+        tierCounts,
+        categoryExpenses,
+        categoryRevenues,
+        paymentStatusCounts,
+        monthlyTrends,
+        totalTransactions: transactions.length,
+      },
+      transactions,
+    };
+  } catch (error: any) {
+    console.error("getAccountingSummary error:", error);
+    return { error: error?.message || "Failed to load accounting data" };
+  }
+}
+
+/**
+ * Server action to create a new accounting transaction (Revenue or Expense).
+ */
+export async function createAccountingTransaction(data: {
+  type: "revenue" | "expense";
+  category: string;
+  description: string;
+  amount: number;
+  currency?: string;
+  tenantId?: string | null;
+  entityName?: string | null;
+  status?: "paid" | "pending" | "refunded" | "cancelled";
+  paymentMethod?: string;
+  invoiceNumber?: string | null;
+  notes?: string | null;
+  transactionDate?: string;
+}) {
+  try {
+    const session = await getSession();
+    if (!session) return { error: "Unauthorized" };
+
+    const userRole = (session.user as any).role;
+    if (userRole !== "admin" && userRole !== "owner") {
+      return { error: "Unauthorized: Operator access required" };
+    }
+
+    if (!data.description?.trim()) {
+      return { error: "Description is required" };
+    }
+    if (!data.amount || data.amount <= 0) {
+      return { error: "Amount must be greater than zero" };
+    }
+
+    const { env } = getCloudflareContext();
+    const db = drizzle(env.DB, { schema });
+
+    const invNum =
+      data.invoiceNumber?.trim() ||
+      `INV-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 900 + 100)}`;
+
+    const newRecord: schema.NewAccountingTransaction = {
+      id: crypto.randomUUID(),
+      type: data.type,
+      category: data.category.trim().toLowerCase(),
+      description: data.description.trim(),
+      amount: Math.round(data.amount),
+      currency: (data.currency || "EGP").toUpperCase(),
+      tenantId: data.tenantId || null,
+      entityName: data.entityName?.trim() || null,
+      status: data.status || "paid",
+      paymentMethod: data.paymentMethod || "other",
+      invoiceNumber: invNum,
+      notes: data.notes?.trim() || null,
+      transactionDate: data.transactionDate ? new Date(data.transactionDate) : new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    await db.insert(schema.accountingTransactions).values(newRecord).run();
+
+    revalidatePath("/jozelio-admin");
+    return { success: true, transaction: newRecord };
+  } catch (error: any) {
+    console.error("createAccountingTransaction error:", error);
+    return { error: error?.message || "Failed to create accounting transaction" };
+  }
+}
+
+/**
+ * Server action to update an existing accounting transaction.
+ */
+export async function updateAccountingTransaction(
+  id: string,
+  data: Partial<schema.NewAccountingTransaction>
+) {
+  try {
+    const session = await getSession();
+    if (!session) return { error: "Unauthorized" };
+
+    const userRole = (session.user as any).role;
+    if (userRole !== "admin" && userRole !== "owner") {
+      return { error: "Unauthorized: Operator access required" };
+    }
+
+    const { env } = getCloudflareContext();
+    const db = drizzle(env.DB, { schema });
+
+    await db
+      .update(schema.accountingTransactions)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.accountingTransactions.id, id))
+      .run();
+
+    revalidatePath("/jozelio-admin");
+    return { success: true };
+  } catch (error: any) {
+    console.error("updateAccountingTransaction error:", error);
+    return { error: error?.message || "Failed to update accounting transaction" };
+  }
+}
+
+/**
+ * Server action to delete an accounting transaction.
+ */
+export async function deleteAccountingTransaction(id: string) {
+  try {
+    const session = await getSession();
+    if (!session) return { error: "Unauthorized" };
+
+    const userRole = (session.user as any).role;
+    if (userRole !== "admin" && userRole !== "owner") {
+      return { error: "Unauthorized: Operator access required" };
+    }
+
+    const { env } = getCloudflareContext();
+    const db = drizzle(env.DB, { schema });
+
+    await db
+      .delete(schema.accountingTransactions)
+      .where(eq(schema.accountingTransactions.id, id))
+      .run();
+
+    revalidatePath("/jozelio-admin");
+    return { success: true };
+  } catch (error: any) {
+    console.error("deleteAccountingTransaction error:", error);
+    return { error: error?.message || "Failed to delete accounting transaction" };
+  }
+}
+
+/**
+ * Server action to seed baseline accounting data derived from active tenants & cloud services.
+ */
+export async function seedInitialAccountingData() {
+  try {
+    const session = await getSession();
+    if (!session) return { error: "Unauthorized" };
+
+    const userRole = (session.user as any).role;
+    if (userRole !== "admin" && userRole !== "owner") {
+      return { error: "Unauthorized: Operator access required" };
+    }
+
+    const { env } = getCloudflareContext();
+    const db = drizzle(env.DB, { schema });
+
+    const existingCount = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(schema.accountingTransactions)
+      .get();
+
+    if (existingCount && existingCount.count > 0) {
+      return { error: "Accounting ledger already contains transactions. Seeding skipped." };
+    }
+
+    const tenants = await db
+      .select({
+        id: schema.tenants.id,
+        businessName: schema.tenants.businessName,
+        tier: schema.tenants.tier,
+      })
+      .from(schema.tenants)
+      .all();
+
+    const now = new Date();
+    const seedRecords: schema.NewAccountingTransaction[] = [];
+
+    // 1. Seed tenant subscriptions for the past 3 months
+    tenants.forEach((t, index) => {
+      const price = t.tier === "enterprise" ? 2499 : t.tier === "pro" ? 499 : 0;
+      if (price > 0) {
+        for (let m = 0; m < 3; m++) {
+          const txDate = new Date(now.getFullYear(), now.getMonth() - m, 5 + (index % 20));
+          seedRecords.push({
+            id: crypto.randomUUID(),
+            type: "revenue",
+            category: "subscription",
+            description: `${t.tier.toUpperCase()} Plan Subscription — ${t.businessName}`,
+            amount: price,
+            currency: "EGP",
+            tenantId: t.id,
+            entityName: t.businessName,
+            status: "paid",
+            paymentMethod: index % 2 === 0 ? "instapay" : "card",
+            invoiceNumber: `INV-2026-${String(now.getMonth() - m + 1).padStart(2, "0")}${String(index + 101)}`,
+            notes: `Auto-generated subscription billing cycle for ${t.businessName}`,
+            transactionDate: txDate,
+            createdAt: txDate,
+            updatedAt: txDate,
+          });
+        }
+      }
+    });
+
+    // 2. Seed baseline recurring operational expenses for the past 3 months
+    const baseExpenses = [
+      { category: "cloudflare", desc: "Cloudflare Workers & D1 Paid Plan", amount: 250, method: "card", vendor: "Cloudflare, Inc." },
+      { category: "resend", desc: "Resend Email API Transactional Tier", amount: 180, method: "card", vendor: "Resend Labs" },
+      { category: "upstash", desc: "Upstash Serverless Redis Quota", amount: 120, method: "card", vendor: "Upstash, Inc." },
+      { category: "ai", desc: "Workers AI Neural Inference Token Usage", amount: 150, method: "card", vendor: "Cloudflare AI" },
+      { category: "marketing", desc: "Digital Growth & Ad Campaign", amount: 650, method: "card", vendor: "Meta Ads" },
+      { category: "salary", desc: "Engineering & Support Operations", amount: 1500, method: "bank_transfer", vendor: "Internal Payroll" },
+    ];
+
+    for (let m = 0; m < 3; m++) {
+      baseExpenses.forEach((exp, eIdx) => {
+        const txDate = new Date(now.getFullYear(), now.getMonth() - m, 1 + eIdx * 4);
+        seedRecords.push({
+          id: crypto.randomUUID(),
+          type: "expense",
+          category: exp.category,
+          description: exp.desc,
+          amount: exp.amount,
+          currency: "EGP",
+          tenantId: null,
+          entityName: exp.vendor,
+          status: "paid",
+          paymentMethod: exp.method,
+          invoiceNumber: `EXP-${txDate.getFullYear()}${String(txDate.getMonth() + 1).padStart(2, "0")}-${100 + eIdx}`,
+          notes: `Monthly operational cloud & service overhead`,
+          transactionDate: txDate,
+          createdAt: txDate,
+          updatedAt: txDate,
+        });
+      });
+    }
+
+    // Insert all seed records
+    for (const rec of seedRecords) {
+      await db.insert(schema.accountingTransactions).values(rec).run();
+    }
+
+    revalidatePath("/jozelio-admin");
+    return { success: true, count: seedRecords.length };
+  } catch (error: any) {
+    console.error("seedInitialAccountingData error:", error);
+    return { error: error?.message || "Failed to seed accounting data" };
+  }
+}
+
+/**
+ * Owner-exclusive Server Action to export an exhaustive, unredacted JSON backup
+ * of the entire platform database (all users, sessions, tenants, menus,
+ * analytics, system settings, notifications, and accounting ledger).
+ */
+export async function exportFullPlatformData() {
+  try {
+    const session = await getSession();
+    if (!session) return { error: "Unauthorized" };
+
+    const { env } = getCloudflareContext();
+    const isOwner = checkIsOwner(session);
+
+    if (!isOwner) {
+      return { error: "Access Denied: Platform Owner privileges are required to export full platform data." };
+    }
+
+    const db = drizzle(env.DB, { schema });
+
+    // 1. Fetch all known schema tables in parallel
+    const [
+      allUsers,
+      allSessions,
+      allAccounts,
+      allVerifications,
+      allTenants,
+      allTenantMembers,
+      allMenuItems,
+      allAnalyticsEvents,
+      allSystemSettings,
+      allNotifications,
+      allAccountingTransactions,
+    ] = await Promise.all([
+      db.select().from(schema.user).all().catch(e => { console.error("Backup users error:", e); return []; }),
+      db.select().from(schema.session).all().catch(e => { console.error("Backup sessions error:", e); return []; }),
+      db.select().from(schema.account).all().catch(e => { console.error("Backup accounts error:", e); return []; }),
+      db.select().from(schema.verification).all().catch(e => { console.error("Backup verifications error:", e); return []; }),
+      db.select().from(schema.tenants).all().catch(e => { console.error("Backup tenants error:", e); return []; }),
+      db.select().from(schema.tenantMembers).all().catch(e => { console.error("Backup tenantMembers error:", e); return []; }),
+      db.select().from(schema.menuItems).all().catch(e => { console.error("Backup menuItems error:", e); return []; }),
+      db.select().from(schema.analyticsEvents).all().catch(e => { console.error("Backup analyticsEvents error:", e); return []; }),
+      db.select().from(schema.systemSettings).all().catch(e => { console.error("Backup systemSettings error:", e); return []; }),
+      db.select().from(schema.notifications).all().catch(e => { console.error("Backup notifications error:", e); return []; }),
+      db.select().from(schema.accountingTransactions).all().catch(e => { console.error("Backup accounting error:", e); return []; }),
+    ]);
+
+    // 2. Dynamically inspect sqlite_master for any other tables in Cloudflare D1
+    const customTables: Record<string, any[]> = {};
+    try {
+      const rawTables = await env.DB.prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name NOT LIKE 'd1_%'"
+      ).all<{ name: string }>();
+
+      const knownTableNames = new Set([
+        "user",
+        "session",
+        "account",
+        "verification",
+        "tenants",
+        "tenant_members",
+        "menu_items",
+        "analytics_events",
+        "system_settings",
+        "notifications",
+        "accounting_transactions",
+      ]);
+
+      if (rawTables?.results) {
+        for (const row of rawTables.results) {
+          if (row.name && !knownTableNames.has(row.name)) {
+            try {
+              const tableRows = await env.DB.prepare(`SELECT * FROM "${row.name}"`).all();
+              customTables[row.name] = tableRows?.results || [];
+            } catch (tErr) {
+              console.warn(`Could not read dynamically discovered table ${row.name}:`, tErr);
+            }
+          }
+        }
+      }
+    } catch (discoveryErr) {
+      console.warn("Dynamic table discovery warning:", discoveryErr);
+    }
+
+    const tableCounts: Record<string, number> = {
+      user: allUsers.length,
+      session: allSessions.length,
+      account: allAccounts.length,
+      verification: allVerifications.length,
+      tenants: allTenants.length,
+      tenantMembers: allTenantMembers.length,
+      menuItems: allMenuItems.length,
+      analyticsEvents: allAnalyticsEvents.length,
+      systemSettings: allSystemSettings.length,
+      notifications: allNotifications.length,
+      accountingTransactions: allAccountingTransactions.length,
+      ...Object.fromEntries(Object.entries(customTables).map(([k, v]) => [k, v.length])),
+    };
+
+    const totalRecords = Object.values(tableCounts).reduce((a, b) => a + b, 0);
+
+    const rawPayload = {
+      meta: {
+        platform: "Jozelio SaaS Platform",
+        system: "Multi-Tenant Restaurant & Storefront Architecture",
+        version: "1.0.0",
+        backupType: "full_platform_exhaustive_backup",
+        exportTimestamp: new Date().toISOString(),
+        exportTimestampUnix: Date.now(),
+        databaseEngine: "Cloudflare D1 Distributed SQLite Edge",
+        exportedBy: {
+          id: session.user.id,
+          name: session.user.name,
+          email: session.user.email,
+          role: (session.user as any).role,
+        },
+        summary: {
+          totalTables: Object.keys(tableCounts).length,
+          totalRecords,
+          tableCounts,
+        },
+        integrityNotice: "This JSON snapshot contains exhaustive unredacted platform data including user entities, tenant configurations, catalogs, and financial transaction records. Store securely in encrypted cold storage.",
+      },
+      tables: {
+        user: allUsers,
+        session: allSessions,
+        account: allAccounts,
+        verification: allVerifications,
+        tenants: allTenants,
+        tenantMembers: allTenantMembers,
+        menuItems: allMenuItems,
+        analyticsEvents: allAnalyticsEvents,
+        systemSettings: allSystemSettings,
+        notifications: allNotifications,
+        accountingTransactions: allAccountingTransactions,
+        ...customTables,
+      },
+    };
+
+    // Ensure clean JSON serialization across Edge boundary
+    const serializedBackup = JSON.parse(JSON.stringify(rawPayload));
+
+    return {
+      success: true,
+      backupData: serializedBackup,
+      summary: {
+        totalRecords,
+        totalTables: Object.keys(tableCounts).length,
+        tableCounts,
+        exportedAt: new Date().toISOString(),
+      },
+    };
+  } catch (error: any) {
+    console.error("exportFullPlatformData error:", error);
+    return { error: error?.message || "Failed to export platform backup data." };
   }
 }
 

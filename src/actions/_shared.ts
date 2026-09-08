@@ -1,7 +1,46 @@
 /**
  * Shared utilities for all server action modules.
- * Centralizes error handling to avoid duplication across action files.
+ * Centralizes error handling and authorization checks to avoid
+ * duplication across action files.
  */
+
+import { getEnv } from "@/lib/get-env";
+
+// ─── Authorization Helpers ───────────────────────────────────
+
+/**
+ * Checks whether the given session user has Platform Owner privileges.
+ *
+ * Owner status is determined by:
+ * 1. The user's database role being "owner", OR
+ * 2. The user's email matching the OWNER_EMAIL environment binding
+ *    (set via `wrangler secret put OWNER_EMAIL` in production).
+ *
+ * Uses getEnv() for consistent Cloudflare Workers + local env access.
+ */
+export function checkIsOwner(session: {
+  user: { email: string; role?: string; [key: string]: unknown };
+}): boolean {
+  const userRole = (session.user as any).role;
+  if (userRole === "owner") return true;
+
+  const ownerEmail = getEnv("OWNER_EMAIL");
+  return !!ownerEmail && session.user.email === ownerEmail;
+}
+
+/**
+ * Checks whether the session user is an admin OR owner.
+ * Admins can perform most super-admin operations;
+ * Owner-exclusive actions should use checkIsOwner() directly.
+ */
+export function checkIsAdminOrOwner(session: {
+  user: { email: string; role?: string; [key: string]: unknown };
+}): boolean {
+  const userRole = (session.user as any).role;
+  return userRole === "admin" || checkIsOwner(session);
+}
+
+// ─── Error Handling ──────────────────────────────────────────
 
 /**
  * Normalizes action errors into a user-safe error response.

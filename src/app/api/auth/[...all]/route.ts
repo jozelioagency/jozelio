@@ -46,7 +46,10 @@ export const POST = async (request: Request) => {
         }
       } catch {}
 
-      if (secretKey) {
+      const isDev = process.env.NODE_ENV !== "production";
+      const isTestKey = secretKey?.startsWith("1x000000") || secretKey?.startsWith("2x000000");
+
+      if (secretKey && !isDev && !isTestKey) {
         return new Response(
           JSON.stringify({ error: "Security validation token is missing. Please reload the page." }),
           { status: 400, headers: { "content-type": "application/json" } }

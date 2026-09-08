@@ -61,9 +61,10 @@ export async function GET(
           ]
         : [
             {
-              src: "/favicon.ico",
-              sizes: "64x64 192x192",
-              type: "image/x-icon",
+              src: "/branding/mail-logo.png",
+              sizes: "192x192 512x512",
+              type: "image/png",
+              purpose: "any maskable",
             },
           ],
     };

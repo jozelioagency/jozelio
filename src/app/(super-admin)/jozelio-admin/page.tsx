@@ -66,6 +66,32 @@ export default async function AdminPage() {
     console.error("Failed to migrate notifications table:", err);
   }
 
+  try {
+    // Create accounting_transactions table
+    await db.run(sql`
+      CREATE TABLE IF NOT EXISTS accounting_transactions (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        category TEXT NOT NULL,
+        description TEXT NOT NULL,
+        amount INTEGER NOT NULL,
+        currency TEXT NOT NULL DEFAULT 'EGP',
+        tenant_id TEXT,
+        entity_name TEXT,
+        status TEXT NOT NULL DEFAULT 'paid',
+        payment_method TEXT NOT NULL DEFAULT 'other',
+        invoice_number TEXT,
+        notes TEXT,
+        transaction_date INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE SET NULL
+      )
+    `);
+  } catch (err) {
+    console.error("Failed to migrate accounting_transactions table:", err);
+  }
+
   // 4. Fetch all tenants joined with their owner user accounts
   const tenantsList = await db
     .select({
@@ -122,6 +148,16 @@ export default async function AdminPage() {
 
   const totalMenuItems = totalMenuItemsRes?.count || 0;
 
+  // 7. Fetch accounting transactions
+  let initialTransactions: schema.AccountingTransaction[] = [];
+  try {
+    initialTransactions = await db
+      .select()
+      .from(schema.accountingTransactions)
+      .orderBy(sql`${schema.accountingTransactions.transactionDate} DESC`)
+      .all();
+  } catch {}
+
   // Resolve platform owner authority purely from DB role — no email fallback
   const isOwner = (session.user as { role?: string }).role === "owner";
 
@@ -142,6 +178,7 @@ export default async function AdminPage() {
           initialTenants={tenantsList} 
           initialUsers={usersList} 
           totalMenuItems={totalMenuItems}
+          initialTransactions={initialTransactions}
           currentOperatorId={session.user.id}
           isOwner={isOwner}
         />

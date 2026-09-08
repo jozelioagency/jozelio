@@ -175,3 +175,27 @@ export async function deleteNotification(...args: Parameters<typeof notifActions
   return notifActions.deleteNotification(...args);
 }
 
+export async function getAccountingSummary(...args: Parameters<typeof adminActions.getAccountingSummary>) {
+  return adminActions.getAccountingSummary(...args);
+}
+
+export async function createAccountingTransaction(...args: Parameters<typeof adminActions.createAccountingTransaction>) {
+  return adminActions.createAccountingTransaction(...args);
+}
+
+export async function updateAccountingTransaction(...args: Parameters<typeof adminActions.updateAccountingTransaction>) {
+  return adminActions.updateAccountingTransaction(...args);
+}
+
+export async function deleteAccountingTransaction(...args: Parameters<typeof adminActions.deleteAccountingTransaction>) {
+  return adminActions.deleteAccountingTransaction(...args);
+}
+
+export async function seedInitialAccountingData(...args: Parameters<typeof adminActions.seedInitialAccountingData>) {
+  return adminActions.seedInitialAccountingData(...args);
+}
+
+export async function exportFullPlatformData(...args: Parameters<typeof adminActions.exportFullPlatformData>) {
+  return adminActions.exportFullPlatformData(...args);
+}
+
