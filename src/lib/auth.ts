@@ -18,8 +18,9 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
  * The root domain used for cookie scoping.
  * Leading dot enables cross-subdomain cookie sharing.
  */
-const COOKIE_DOMAIN = `.${process.env.NEXT_PUBLIC_APP_DOMAIN || "jozelio.dev"}`;
 const IS_PROD = process.env.NODE_ENV === "production";
+const ROOT_APP_DOMAIN = process.env.NEXT_PUBLIC_APP_DOMAIN || (IS_PROD ? "jozelio.com" : "jozelio.dev");
+const COOKIE_DOMAIN = `.${ROOT_APP_DOMAIN}`;
 
 /**
  * "From" address used for all security/auth outbound emails.
@@ -115,6 +116,8 @@ export function createAuth(d1: D1Database) {
         "jozelio.dev:3000",
         "*.jozelio.dev:3000",
         "*.jozelio.dev",
+        "jozelio.com",
+        "www.jozelio.com",
         "*.jozelio.com",
       ],
       protocol: IS_PROD ? "https" : "http",

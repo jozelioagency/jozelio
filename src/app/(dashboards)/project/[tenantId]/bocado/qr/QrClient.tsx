@@ -42,7 +42,15 @@ export default function QrClient({ tenant, lang = "English" }: QrClientProps) {
   const t = qrTranslations[lang === "Arabic" ? "Arabic" : "English"];
   const isRtl = lang === "Arabic";
 
-  const storefrontUrl = `http://${tenant.subdomain}.jozelio.dev:3000?source=qr`;
+  const isProd =
+    process.env.NODE_ENV === "production" ||
+    process.env.NEXT_PUBLIC_APP_DOMAIN === "jozelio.com" ||
+    (typeof window !== "undefined" && window.location.hostname.endsWith("jozelio.com"));
+  const rootDomain = process.env.NEXT_PUBLIC_APP_DOMAIN || (isProd ? "jozelio.com" : "jozelio.dev");
+  const isDevHost = rootDomain.includes("dev") || (!isProd && rootDomain !== "jozelio.com");
+  const protocol = isDevHost ? "http" : "https";
+  const storefrontHost = `${tenant.subdomain}.${rootDomain}${isDevHost ? ":3000" : ""}`;
+  const storefrontUrl = `${protocol}://${storefrontHost}?source=qr`;
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(storefrontUrl)}`;
 
   const handleDownload = async () => {

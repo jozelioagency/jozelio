@@ -113,6 +113,15 @@ export default function DashboardConsoleClient({
 
   const t = consoleTranslations[lang === "Arabic" ? "Arabic" : "English"];
 
+  const isProd =
+    process.env.NODE_ENV === "production" ||
+    process.env.NEXT_PUBLIC_APP_DOMAIN === "jozelio.com" ||
+    (typeof window !== "undefined" && window.location.hostname.endsWith("jozelio.com"));
+  const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN || (isProd ? "jozelio.com" : "jozelio.dev");
+  const isDevHost = appDomain.includes("dev") || (!isProd && appDomain !== "jozelio.com");
+  const hostSuffix = isDevHost ? `.${appDomain}:3000` : `.${appDomain}`;
+  const protocol = isDevHost ? "http" : "https";
+
   const handleCreateProjectSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
@@ -305,7 +314,7 @@ export default function DashboardConsoleClient({
                       className="w-full bg-brand-bg/25 border border-brand-blue/30 rounded-none pl-10 pr-32 py-2.5 text-xs text-brand-blue focus:outline-none focus:bg-brand-white focus:border-brand-orange transition-all font-semibold"
                     />
                     <span className="absolute right-4 font-mono text-[9px] font-bold text-brand-blue/40 pointer-events-none">
-                      {t.suffix}
+                      {hostSuffix}
                     </span>
                   </div>
                 </div>
@@ -371,7 +380,7 @@ export default function DashboardConsoleClient({
                     {project.businessName}
                   </h3>
                   <p className="font-mono text-[10px] text-brand-blue/60 font-bold truncate">
-                    {project.customDomain || `${project.subdomain}.jozelio.dev:3000`}
+                    {project.customDomain || `${project.subdomain}${hostSuffix}`}
                   </p>
                   {!isOwner && (
                     <span className="inline-block mt-1 font-mono text-[8px] font-black uppercase tracking-wider text-violet-700 bg-violet-100/60 px-2 py-0.5 border border-violet-200 shadow-[1px_1px_0px_#8b5cf6]">
@@ -383,7 +392,7 @@ export default function DashboardConsoleClient({
 
               <div className="pt-4 border-t border-brand-blue/10 mt-6 flex justify-between items-center">
                 <a
-                  href={`http://${project.subdomain}.jozelio.dev:3000`}
+                  href={project.customDomain ? `https://${project.customDomain}` : `${protocol}://${project.subdomain}${hostSuffix}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}

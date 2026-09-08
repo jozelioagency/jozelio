@@ -8,6 +8,10 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  "vars": {
+    "NEXT_PUBLIC_APP_DOMAIN": "jozelio.com",
+    "BETTER_AUTH_URL": "https://jozelio.com"
+  },
 
   // ─── D1 Database Binding ─────────────────────────────────
   // After creating the database, replace database_id:

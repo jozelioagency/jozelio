@@ -11,7 +11,7 @@ import { getEnv } from "@/lib/get-env";
  * In development: jozelio.dev
  * In production:  jozelio.com
  */
-const ROOT_DOMAIN = process.env.NEXT_PUBLIC_APP_DOMAIN || "jozelio.dev";
+const ROOT_DOMAIN = process.env.NEXT_PUBLIC_APP_DOMAIN || (process.env.NODE_ENV === "production" ? "jozelio.com" : "jozelio.dev");
 
 /**
  * Paths that should never be intercepted by subdomain routing.
@@ -29,33 +29,47 @@ const BYPASS_PREFIXES = [
 const STATIC_EXTENSIONS = /\.(png|jpg|jpeg|gif|svg|webp|ico|woff|woff2|ttf|eot|css|js|map)$/i;
 
 /**
+ * Identifies if a hostname is our primary platform site (not a tenant storefront or custom domain).
+ */
+function isRootSite(host: string): boolean {
+  return (
+    host === ROOT_DOMAIN ||
+    host === `www.${ROOT_DOMAIN}` ||
+    host === "jozelio.com" ||
+    host === "www.jozelio.com" ||
+    host === "jozelio.dev" ||
+    host === "www.jozelio.dev" ||
+    host === "localhost"
+  );
+}
+
+/**
  * Extracts the subdomain from a hostname.
  *
  * Examples:
  *   "gustopizza.jozelio.dev:3000" → "gustopizza"
- *   "burgerbox.jozelio.com"         → "burgerbox"
- *   "jozelio.dev:3000"            → null
- *   "www.jozelio.dev"             → null (www is treated as root)
- *   "localhost:3000"                → null
+ *   "burgerbox.jozelio.com"       → "burgerbox"
+ *   "jozelio.com"                 → null
+ *   "www.jozelio.com"             → null (www is treated as root)
+ *   "localhost:3000"              → null
  */
 function extractSubdomain(hostname: string): string | null {
   // Strip port if present
   const host = hostname.split(":")[0];
 
-  // Must end with our root domain
-  if (!host.endsWith(ROOT_DOMAIN)) {
-    return null;
+  const candidates = Array.from(new Set([ROOT_DOMAIN, "jozelio.com", "jozelio.dev"].filter(Boolean)));
+
+  for (const root of candidates) {
+    if (host.endsWith(root)) {
+      const prefix = host.slice(0, -(root.length + 1)); // +1 for the dot
+      if (!prefix || prefix === "www") {
+        return null;
+      }
+      return prefix;
+    }
   }
 
-  // Extract the part before the root domain
-  const prefix = host.slice(0, -(ROOT_DOMAIN.length + 1)); // +1 for the dot
-
-  // No subdomain, empty string, or "www" → treat as main site
-  if (!prefix || prefix === "www") {
-    return null;
-  }
-
-  return prefix;
+  return null;
 }
 
 export async function middleware(request: NextRequest) {
@@ -88,7 +102,7 @@ export async function middleware(request: NextRequest) {
     const host = hostname.split(":")[0];
     let customRateLimit: number | null = null;
 
-    if (subdomain || (host !== ROOT_DOMAIN && host !== "localhost")) {
+    if (subdomain || !isRootSite(host)) {
       try {
         const { env } = getCloudflareContext();
         if (env?.DB) {
@@ -198,7 +212,7 @@ export async function middleware(request: NextRequest) {
   // Cache the custom domain → subdomain mapping for 5 minutes to avoid
   // hitting D1 on every request. Falls back to direct D1 query on cache miss.
   const host = hostname.split(":")[0];
-  if (!subdomain && host !== ROOT_DOMAIN && host !== "localhost") {
+  if (!subdomain && !isRootSite(host)) {
     try {
       const { env } = getCloudflareContext();
       if (env?.DB) {

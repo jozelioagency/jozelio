@@ -1081,15 +1081,27 @@ export default function AdminClient({
                             </span>
                           )}
                         </div>
-                        <a 
-                          href={`http://${t.subdomain}.jozelio.dev:3000`} 
-                          target="_blank"
-                          rel="noreferrer"
-                          className="font-mono text-[10px] text-brand-orange font-bold mt-0.5 inline-flex items-center gap-1 hover:underline"
-                        >
-                          <span>{t.subdomain}.jozelio.dev</span>
-                          <ExternalLink className="w-2.5 h-2.5 shrink-0" />
-                        </a>
+                        {(() => {
+                          const isClientProd =
+                            process.env.NODE_ENV === "production" ||
+                            process.env.NEXT_PUBLIC_APP_DOMAIN === "jozelio.com" ||
+                            (typeof window !== "undefined" && window.location.hostname.endsWith("jozelio.com"));
+                          const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN || (isClientProd ? "jozelio.com" : "jozelio.dev");
+                          const isDevHost = appDomain.includes("dev") || (!isClientProd && appDomain !== "jozelio.com");
+                          const proto = isDevHost ? "http" : "https";
+                          const fullHost = `${t.subdomain}.${appDomain}${isDevHost ? ":3000" : ""}`;
+                          return (
+                            <a 
+                              href={`${proto}://${fullHost}`} 
+                              target="_blank"
+                              rel="noreferrer"
+                              className="font-mono text-[10px] text-brand-orange font-bold mt-0.5 inline-flex items-center gap-1 hover:underline"
+                            >
+                              <span>{t.subdomain}.{appDomain}</span>
+                              <ExternalLink className="w-2.5 h-2.5 shrink-0" />
+                            </a>
+                          );
+                        })()}
                       </td>
                       <td className="p-4">
                         <div className="text-brand-blue font-bold">{t.ownerName}</div>

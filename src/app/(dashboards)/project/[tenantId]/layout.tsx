@@ -120,7 +120,10 @@ export default async function ProjectLayout({
   }
 
   const isBocado = tenant.verticalType === "bocado_restaurant";
-  const displaySubdomain = `${tenant.subdomain}.jozelio.dev:3000`;
+  const isProd = process.env.NODE_ENV === "production";
+  const rootDomain = process.env.NEXT_PUBLIC_APP_DOMAIN || (isProd ? "jozelio.com" : "jozelio.dev");
+  const isDevHost = rootDomain.includes("dev") || (!isProd && rootDomain !== "jozelio.com");
+  const displaySubdomain = `${tenant.subdomain}.${rootDomain}${isDevHost ? ":3000" : ""}`;
 
   const isBanActive = tenant.isBanned && (
     !tenant.banExpiresAt || new Date(tenant.banExpiresAt) > new Date()

@@ -38,7 +38,13 @@ interface BrandingClientProps {
   locationLimit: number;
 }
 
-const ROOT_DOMAIN = process.env.NEXT_PUBLIC_APP_DOMAIN || "jozelio.dev";
+const isClientProd =
+  process.env.NODE_ENV === "production" ||
+  process.env.NEXT_PUBLIC_APP_DOMAIN === "jozelio.com" ||
+  (typeof window !== "undefined" && window.location.hostname.endsWith("jozelio.com"));
+const ROOT_DOMAIN = process.env.NEXT_PUBLIC_APP_DOMAIN || (isClientProd ? "jozelio.com" : "jozelio.dev");
+const IS_DEV_ROOT = ROOT_DOMAIN.includes("dev") || (!isClientProd && ROOT_DOMAIN !== "jozelio.com");
+const DISPLAY_SUBDOMAIN_SUFFIX = `.${ROOT_DOMAIN}${IS_DEV_ROOT ? ":3000" : ""}`;
 
 const CopyField = ({ label, value, isRtl }: { label: string; value: string; isRtl: boolean }) => {
   const [copied, setCopied] = useState(false);
@@ -457,7 +463,7 @@ export default function BrandingClient({ tenant, lang = "English", cooldownDays,
               <span className={`absolute right-4 font-mono text-[9px] font-bold pointer-events-none ${
                 isSubdomainLocked ? "text-brand-blue/25" : "text-brand-blue/40"
               }`}>
-                .jozelio.dev:3000
+                {DISPLAY_SUBDOMAIN_SUFFIX}
               </span>
             </div>
             {isSubdomainLocked && (

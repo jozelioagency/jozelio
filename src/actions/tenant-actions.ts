@@ -18,7 +18,7 @@ import { Ratelimit } from "@upstash/ratelimit";
 
 
 
-const ROOT_DOMAIN = process.env.NEXT_PUBLIC_APP_DOMAIN || "jozelio.dev";
+const ROOT_DOMAIN = process.env.NEXT_PUBLIC_APP_DOMAIN || (process.env.NODE_ENV === "production" ? "jozelio.com" : "jozelio.dev");
 const RESERVED_SUBDOMAINS = ["www", "api", "admin", "jozelio", "portal", "media", "auth", "static", "assets"];
 
 
@@ -312,7 +312,15 @@ export async function updateTenantProfile(data: {
         return { error: "Invalid custom domain format. Example: menu.myrestaurant.com" };
       }
 
-      if (newCustomDomain === ROOT_DOMAIN || newCustomDomain.endsWith("." + ROOT_DOMAIN)) {
+      const isReservedRoot =
+        newCustomDomain === ROOT_DOMAIN ||
+        newCustomDomain.endsWith("." + ROOT_DOMAIN) ||
+        newCustomDomain === "jozelio.com" ||
+        newCustomDomain.endsWith(".jozelio.com") ||
+        newCustomDomain === "jozelio.dev" ||
+        newCustomDomain.endsWith(".jozelio.dev");
+
+      if (isReservedRoot) {
         return { error: "Cannot use platform root domain or subdomains as a custom domain." };
       }
 

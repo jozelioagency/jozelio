@@ -116,9 +116,9 @@ export async function inviteTeamMember(data: {
       inviteExpiresAt,
     });
 
-    // ── Send invitation email via Resend (fire-and-forget) ────────────────
-    const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN || "jozelio.dev:3000";
-    const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
+    const isProd = process.env.NODE_ENV === "production";
+    const appDomain = getEnv("NEXT_PUBLIC_APP_DOMAIN") || (isProd ? "jozelio.com" : "jozelio.dev:3000");
+    const protocol = isProd ? "https" : "http";
     const acceptUrl = `${protocol}://${appDomain}/invite/accept?token=${inviteToken}`;
     const fromEmail = process.env.RESEND_WORKSPACES_EMAIL || "Jozelio Workspaces <workspaces@mail.jozelio.com>";
     const inviterName = session.user.name || session.user.email;

@@ -12,8 +12,9 @@
  * Logo: Uses /branding/mail-logo.png hosted on the app domain.
  */
 
-const APP_DOMAIN = process.env.NEXT_PUBLIC_APP_DOMAIN || "jozelio.dev:3000";
-const PROTOCOL = process.env.NODE_ENV === "production" ? "https" : "http";
+const isProd = process.env.NODE_ENV === "production";
+const APP_DOMAIN = process.env.NEXT_PUBLIC_APP_DOMAIN || (isProd ? "jozelio.com" : "jozelio.dev:3000");
+const PROTOCOL = isProd ? "https" : "http";
 const LOGO_URL = `${PROTOCOL}://${APP_DOMAIN}/branding/mail-logo.png`;
 
 // ─── Brand Tokens (mirroring globals.css @theme) ──────────────

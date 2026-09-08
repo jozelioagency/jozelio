@@ -132,7 +132,7 @@ const en: LanguageTranslations = {
         shortDesc: "Launch and coordinate multiple business projects. Switch between scoped brand subdomains instantly from a single console.",
         longDesc: "Every brand is unique. Instantly deploy dynamic custom subdomains, configure physical store coordinates, map custom colors, and set up metadata settings from your unified user hub.",
         features: [
-          "Bespoke subdomain provisioning (e.g. pizza.jozelio.dev)",
+          "Bespoke subdomain provisioning (e.g. pizza.jozelio.com)",
           "Unified main project grid cards and wizard settings",
           "Dedicated R2 assets upload hooks (brand logo inputs)",
           "Adaptive English/Arabic direction translations per project"
@@ -266,7 +266,7 @@ const ar: LanguageTranslations = {
         shortDesc: "أطلق ونسق مشاريع تجارية متعددة. تنقل بين نطاقات الهوية الفرعية للمشروع على الفور من لوحة تحكم موحدة.",
         longDesc: "لكل علامة تجارية طابعها الخاص. قم بنشر نطاقات فرعية ديناميكية مخصصة على الفور، وتهيئة إحداثيات المتجر الجغرافية، وتحديد شعار الهوية، وتنسيق الإعدادات من مركزك الموحد.",
         features: [
-          "تخصيص وحجز نطاقات فرعية فورية (مثل: pizza.jozelio.dev)",
+          "تخصيص وحجز نطاقات فرعية فورية (مثل: pizza.jozelio.com)",
           "لوحة تحكم مركزية لعرض المشاريع وإضافة إعدادات جديدة",
           "روابط رفع أصول صور شعار الهوية مباشرة إلى Cloudflare R2",
           "اتجاهات ترجمة ذكية متوافقة مع اللغة العربية والإنجليزية"
