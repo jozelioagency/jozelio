@@ -121,6 +121,7 @@ export function createAuth(d1: D1Database) {
         "*.jozelio.com",
       ],
       protocol: IS_PROD ? "https" : "http",
+      fallback: IS_PROD ? "https://jozelio.com" : "http://jozelio.dev:3000",
     },
 
     // ─── Cross-Subdomain Cookie Configuration ─────────────

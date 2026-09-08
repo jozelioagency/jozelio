@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "jozelio-platform",
+  "name": "jozelio",
   "compatibility_date": "2026-07-12",
   "compatibility_flags": ["nodejs_compat"],
   "main": ".open-next/worker.js",
