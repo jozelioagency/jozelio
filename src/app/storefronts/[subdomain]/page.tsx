@@ -9,7 +9,6 @@ import { ShieldAlert } from "lucide-react";
 import { headers } from "next/headers";
 import type { Metadata } from "next";
 
-export const runtime = "edge";
 
 export async function generateMetadata(
   props: { params: Promise<{ subdomain: string }> }

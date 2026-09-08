@@ -7,7 +7,6 @@ import * as schema from "@/db/schema";
 import PwaClient from "./PwaClient";
 import { cookies } from "next/headers";
 
-export const runtime = "edge";
 
 export default async function PwaSettingsPage({
   params,

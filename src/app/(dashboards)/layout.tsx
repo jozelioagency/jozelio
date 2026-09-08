@@ -7,7 +7,6 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { eq, sql } from "drizzle-orm";
 import * as schema from "@/db/schema";
 
-export const runtime = "edge";
 
 export default async function DashboardLayout({
   children,

@@ -12,7 +12,6 @@ import NotificationCenter from "@/components/NotificationCenter";
 import SidebarNav from "@/components/SidebarNav";
 import ProjectDashboardShell from "@/components/ProjectDashboardShell";
 
-export const runtime = "edge";
 
 const layoutTranslations = {
   English: {

@@ -4,7 +4,6 @@ import { eq } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { NextRequest, NextResponse } from "next/server";
 
-export const runtime = "edge";
 
 export async function GET(
   request: NextRequest,

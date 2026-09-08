@@ -7,7 +7,6 @@ import { getSession } from "@/lib/auth-session";
 import { cookies } from "next/headers";
 import AnalyticsClient from "./AnalyticsClient";
 
-export const runtime = "edge";
 
 /** Parse and validate the date range from searchParams */
 function getDateRange(searchParams: Record<string, string | undefined>): {

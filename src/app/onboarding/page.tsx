@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import OnboardingClient from "./OnboardingClient";
 import { cookies } from "next/headers";
 
-export const runtime = "edge";
 
 export default async function OnboardingPage() {
   // 1. Authenticate user session

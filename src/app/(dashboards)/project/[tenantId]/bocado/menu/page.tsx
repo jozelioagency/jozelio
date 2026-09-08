@@ -7,7 +7,6 @@ import * as schema from "@/db/schema";
 import MenuClient from "./MenuClient";
 import { cookies } from "next/headers";
 
-export const runtime = "edge";
 
 export default async function MenuPage({
   params,

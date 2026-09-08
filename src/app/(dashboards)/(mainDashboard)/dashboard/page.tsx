@@ -7,7 +7,6 @@ import * as schema from "@/db/schema";
 import DashboardConsoleClient from "../DashboardConsoleClient";
 import { cookies } from "next/headers";
 
-export const runtime = "edge";
 
 export default async function DashboardPage() {
   // 1. Authenticate user session

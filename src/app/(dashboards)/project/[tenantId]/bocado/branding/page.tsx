@@ -7,7 +7,6 @@ import * as schema from "@/db/schema";
 import BrandingClient from "./BrandingClient";
 import { cookies } from "next/headers";
 
-export const runtime = "edge";
 
 export default async function BrandingPage({
   params,

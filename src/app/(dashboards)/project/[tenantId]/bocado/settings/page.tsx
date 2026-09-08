@@ -8,7 +8,6 @@ import SettingsClient from "./SettingsClient";
 import { cookies } from "next/headers";
 import { getTenantMembers } from "@/app/actions";
 
-export const runtime = "edge";
 
 export default async function SettingsPage({
   params,

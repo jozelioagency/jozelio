@@ -7,7 +7,6 @@ import * as schema from "@/db/schema";
 import PlansClient from "./PlansClient";
 import { cookies } from "next/headers";
 
-export const runtime = "edge";
 
 export default async function PlansPage({
   params,

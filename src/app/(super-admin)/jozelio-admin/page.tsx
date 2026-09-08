@@ -8,7 +8,6 @@ import AdminClient from "./AdminClient";
 import { BrandLogo } from "@/components/BrandLogo";
 import type { Metadata } from "next";
 
-export const runtime = "edge";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },

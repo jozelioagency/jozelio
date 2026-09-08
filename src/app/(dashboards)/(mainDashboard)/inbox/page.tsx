@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { getPendingInvitations, getSystemNotifications } from "@/app/actions";
 import InboxClient from "./InboxClient";
 
-export const runtime = "edge";
 
 export default async function InboxPage() {
   const session = await getSession();

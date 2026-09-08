@@ -7,7 +7,6 @@ import * as schema from "@/db/schema";
 import ProfileClient from "./ProfileClient";
 import { cookies } from "next/headers";
 
-export const runtime = "edge";
 
 export default async function ProfilePage() {
   // 1. Authenticate user session

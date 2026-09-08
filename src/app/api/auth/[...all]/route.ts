@@ -3,8 +3,6 @@ import { createAuth } from "@/lib/auth";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 
-export const runtime = "edge";
-
 /**
  * Better-Auth catch-all API route handler.
  *
